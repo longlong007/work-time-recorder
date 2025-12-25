@@ -28,7 +28,7 @@ REM 检查是否已设置远程仓库
 git remote get-url origin >nul 2>&1
 if errorlevel 1 (
     echo 请先设置远程仓库地址：
-    echo git remote add origin https://github.com/YOUR_USERNAME/work-time-recorder.git
+    echo git remote add origin https://github.com/longlong007/work-time-recorder.git
     echo.
     echo 然后运行以下命令推送：
     echo git branch -M main
