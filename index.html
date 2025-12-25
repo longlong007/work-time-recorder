@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作时间记录器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⏰ 工作时间记录器</h1>
+        </header>
+
+        <main>
+            <!-- 当前状态卡片 -->
+            <div class="status-card" id="statusCard">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span class="status-text" id="statusText">未开始</span>
+                </div>
+                <div class="current-work-name" id="currentWorkName" style="display: none;">
+                    📝 <span id="currentWorkNameValue">工作内容</span>
+                </div>
+                <div class="current-time" id="currentTime">--:--:--</div>
+                <div class="elapsed-time" id="elapsedTime" style="display: none;">
+                    已工作: <span id="elapsedTimeValue">00:00:00</span>
+                </div>
+            </div>
+
+            <!-- 工作内容输入 -->
+            <div class="work-name-input-section" id="workNameSection">
+                <label for="workNameInput" class="input-label">📝 工作内容</label>
+                <input 
+                    type="text" 
+                    id="workNameInput" 
+                    class="work-name-input" 
+                    placeholder="请输入工作内容名称（可选）"
+                    maxlength="50">
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="action-buttons">
+                <button class="btn btn-start" id="startBtn">
+                    <span class="btn-icon">▶</span>
+                    开始工作
+                </button>
+                <button class="btn btn-stop" id="stopBtn" disabled>
+                    <span class="btn-icon">⏸</span>
+                    结束工作
+                </button>
+            </div>
+
+            <!-- 历史记录 -->
+            <div class="history-section">
+                <div class="section-header">
+                    <h2>📋 历史记录</h2>
+                    <button class="btn btn-clear" id="clearBtn">清空记录</button>
+                </div>
+                <div class="filter-bar">
+                    <input type="date" id="filterDate" class="date-filter">
+                    <button class="btn btn-filter" id="filterBtn">筛选</button>
+                    <button class="btn btn-reset" id="resetFilterBtn">重置</button>
+                </div>
+                <div class="history-list" id="historyList">
+                    <div class="empty-state">暂无记录</div>
+                </div>
+                <div class="statistics" id="statistics">
+                    <div class="stat-item">
+                        <span class="stat-label">今日总计</span>
+                        <span class="stat-value" id="todayTotal">00:00:00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">本周总计</span>
+                        <span class="stat-value" id="weekTotal">00:00:00</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
