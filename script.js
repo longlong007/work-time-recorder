@@ -39,6 +39,18 @@ const newTagInput = document.getElementById('newTagInput');
 const addTagBtn = document.getElementById('addTagBtn');
 const tagList = document.getElementById('tagList');
 
+// 编辑记录相关 DOM 元素
+const editModal = document.getElementById('editModal');
+const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+const editWorkName = document.getElementById('editWorkName');
+const editStartTime = document.getElementById('editStartTime');
+const editEndTime = document.getElementById('editEndTime');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const saveEditBtn = document.getElementById('saveEditBtn');
+
+// 当前正在编辑的记录
+let currentEditingRecord = null;
+
 let updateInterval = null;
 let filterDateValue = null;
 
@@ -294,7 +306,10 @@ function renderHistory() {
                         <span class="history-date">${startDate}</span>
                         <span class="history-duration">${duration}</span>
                     </div>
-                    <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
+                    <div class="history-item-actions">
+                        <button class="btn-edit-record" data-timestamp="${record.startTime}" title="编辑此记录">✏️</button>
+                        <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
+                    </div>
                 </div>
                 ${workName ? `<div class="history-work-name">📝 ${escapeHtml(workName)}</div>` : ''}
                 <div class="history-time">
@@ -304,6 +319,15 @@ function renderHistory() {
             </div>
         `;
     }).join('');
+    
+    // 为编辑按钮添加事件监听
+    document.querySelectorAll('.btn-edit-record').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const timestamp = btn.dataset.timestamp;
+            openEditModal(timestamp);
+        });
+    });
     
     // 为删除按钮添加事件监听
     document.querySelectorAll('.btn-delete-record').forEach(btn => {
@@ -559,6 +583,127 @@ newTagInput.addEventListener('keypress', (e) => {
 tagModal.addEventListener('click', (e) => {
     if (e.target === tagModal) {
         closeTagModal();
+    }
+});
+
+// ==================== 编辑记录功能 ====================
+
+// 转换日期时间为 datetime-local 格式
+function toDatetimeLocal(isoString) {
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// 打开编辑弹窗
+function openEditModal(timestamp) {
+    const records = getHistoryRecords();
+    const record = records.find(r => r.startTime === timestamp);
+    
+    if (!record) {
+        alert('找不到该记录');
+        return;
+    }
+    
+    // 保存当前编辑的记录
+    currentEditingRecord = timestamp;
+    
+    // 填充表单
+    editWorkName.value = record.workName || '';
+    editStartTime.value = toDatetimeLocal(record.startTime);
+    editEndTime.value = toDatetimeLocal(record.endTime);
+    
+    // 显示弹窗
+    editModal.style.display = 'flex';
+    editWorkName.focus();
+}
+
+// 关闭编辑弹窗
+function closeEditModal() {
+    editModal.style.display = 'none';
+    currentEditingRecord = null;
+    editWorkName.value = '';
+    editStartTime.value = '';
+    editEndTime.value = '';
+}
+
+// 保存编辑
+function saveEdit() {
+    if (!currentEditingRecord) {
+        return;
+    }
+    
+    const workName = editWorkName.value.trim();
+    const startTimeStr = editStartTime.value;
+    const endTimeStr = editEndTime.value;
+    
+    // 验证输入
+    if (!startTimeStr || !endTimeStr) {
+        alert('请选择开始和结束时间');
+        return;
+    }
+    
+    const startTime = new Date(startTimeStr);
+    const endTime = new Date(endTimeStr);
+    
+    // 验证时间逻辑
+    if (endTime <= startTime) {
+        alert('结束时间必须晚于开始时间');
+        return;
+    }
+    
+    // 验证时间不能是未来
+    const now = new Date();
+    if (startTime > now || endTime > now) {
+        alert('不能设置未来的时间');
+        return;
+    }
+    
+    // 获取所有记录
+    const records = getHistoryRecords();
+    const recordIndex = records.findIndex(r => r.startTime === currentEditingRecord);
+    
+    if (recordIndex === -1) {
+        alert('找不到该记录');
+        closeEditModal();
+        return;
+    }
+    
+    // 更新记录
+    records[recordIndex] = {
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        duration: calculateDuration(startTime.toISOString(), endTime.toISOString()),
+        workName: workName || '未命名工作'
+    };
+    
+    // 重新排序
+    records.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    
+    // 保存
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    
+    // 关闭弹窗
+    closeEditModal();
+    
+    // 刷新显示
+    renderHistory();
+    updateStatistics();
+}
+
+// 编辑记录事件监听
+closeEditModalBtn.addEventListener('click', closeEditModal);
+cancelEditBtn.addEventListener('click', closeEditModal);
+saveEditBtn.addEventListener('click', saveEdit);
+
+// 点击弹窗外部关闭
+editModal.addEventListener('click', (e) => {
+    if (e.target === editModal) {
+        closeEditModal();
     }
 });
 

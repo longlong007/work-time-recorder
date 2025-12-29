@@ -71,6 +71,47 @@
                 </div>
             </div>
 
+            <!-- 编辑记录弹窗 -->
+            <div class="edit-modal" id="editModal" style="display: none;">
+                <div class="edit-modal-content">
+                    <div class="edit-modal-header">
+                        <h3>✏️ 编辑记录</h3>
+                        <button class="btn-close" id="closeEditModalBtn">✕</button>
+                    </div>
+                    <div class="edit-modal-body">
+                        <div class="edit-form">
+                            <div class="form-group">
+                                <label for="editWorkName" class="form-label">📝 工作内容</label>
+                                <input 
+                                    type="text" 
+                                    id="editWorkName" 
+                                    class="form-input" 
+                                    placeholder="工作内容名称"
+                                    maxlength="50">
+                            </div>
+                            <div class="form-group">
+                                <label for="editStartTime" class="form-label">⏰ 开始时间</label>
+                                <input 
+                                    type="datetime-local" 
+                                    id="editStartTime" 
+                                    class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="editEndTime" class="form-label">⏰ 结束时间</label>
+                                <input 
+                                    type="datetime-local" 
+                                    id="editEndTime" 
+                                    class="form-input">
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn btn-cancel" id="cancelEditBtn">取消</button>
+                                <button class="btn btn-save" id="saveEditBtn">💾 保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 操作按钮 -->
             <div class="action-buttons">
                 <button class="btn btn-start" id="startBtn">
