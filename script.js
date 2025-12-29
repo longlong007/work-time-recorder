@@ -1,5 +1,6 @@
 // 数据存储键
 const STORAGE_KEY = 'workTimeRecords';
+const TAGS_STORAGE_KEY = 'workTags';
 
 // 状态管理
 let currentRecord = {
@@ -29,6 +30,15 @@ const resetFilterBtn = document.getElementById('resetFilterBtn');
 const todayTotal = document.getElementById('todayTotal');
 const weekTotal = document.getElementById('weekTotal');
 
+// 标签相关 DOM 元素
+const quickTags = document.getElementById('quickTags');
+const manageTagsBtn = document.getElementById('manageTagsBtn');
+const tagModal = document.getElementById('tagModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const newTagInput = document.getElementById('newTagInput');
+const addTagBtn = document.getElementById('addTagBtn');
+const tagList = document.getElementById('tagList');
+
 let updateInterval = null;
 let filterDateValue = null;
 
@@ -39,6 +49,8 @@ function init() {
     renderHistory();
     updateStatistics();
     startClock();
+    loadTags();
+    renderQuickTags();
     
     // 设置默认筛选日期为今天
     const today = new Date().toISOString().split('T')[0];
@@ -348,6 +360,149 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ==================== 标签管理功能 ====================
+
+// 获取标签列表
+function getTags() {
+    const tags = localStorage.getItem(TAGS_STORAGE_KEY);
+    return tags ? JSON.parse(tags) : ['开发', '会议', '学习', '调试', '文档'];
+}
+
+// 保存标签列表
+function saveTags(tags) {
+    localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(tags));
+}
+
+// 加载标签
+function loadTags() {
+    // 确保有默认标签
+    const tags = getTags();
+    if (tags.length === 0) {
+        saveTags(['开发', '会议', '学习', '调试', '文档']);
+    }
+}
+
+// 渲染快速标签
+function renderQuickTags() {
+    const tags = getTags();
+    
+    if (tags.length === 0) {
+        quickTags.innerHTML = '';
+        return;
+    }
+    
+    quickTags.innerHTML = tags.map(tag => 
+        `<button class="quick-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`
+    ).join('');
+    
+    // 为每个标签添加点击事件
+    document.querySelectorAll('.quick-tag').forEach(tagBtn => {
+        tagBtn.addEventListener('click', () => {
+            const tagName = tagBtn.dataset.tag;
+            const currentValue = workNameInput.value.trim();
+            
+            // 如果输入框为空，直接设置标签
+            if (!currentValue) {
+                workNameInput.value = tagName;
+            } else {
+                // 如果输入框有内容，在后面添加标签
+                workNameInput.value = currentValue + ' - ' + tagName;
+            }
+            
+            workNameInput.focus();
+        });
+    });
+}
+
+// 渲染标签管理列表
+function renderTagList() {
+    const tags = getTags();
+    
+    if (tags.length === 0) {
+        tagList.innerHTML = '<div class="empty-tags">暂无标签，请添加一个</div>';
+        return;
+    }
+    
+    tagList.innerHTML = tags.map(tag => `
+        <div class="tag-item">
+            <span class="tag-item-name">${escapeHtml(tag)}</span>
+            <button class="btn-delete-tag" data-tag="${escapeHtml(tag)}">🗑️ 删除</button>
+        </div>
+    `).join('');
+    
+    // 为删除按钮添加事件
+    document.querySelectorAll('.btn-delete-tag').forEach(btn => {
+        btn.addEventListener('click', () => {
+            deleteTag(btn.dataset.tag);
+        });
+    });
+}
+
+// 添加标签
+function addTag() {
+    const tagName = newTagInput.value.trim();
+    
+    if (!tagName) {
+        alert('请输入标签名称');
+        return;
+    }
+    
+    if (tagName.length > 20) {
+        alert('标签名称不能超过20个字符');
+        return;
+    }
+    
+    const tags = getTags();
+    
+    // 检查是否已存在
+    if (tags.includes(tagName)) {
+        alert('该标签已存在');
+        return;
+    }
+    
+    tags.push(tagName);
+    saveTags(tags);
+    
+    // 清空输入框
+    newTagInput.value = '';
+    
+    // 重新渲染
+    renderQuickTags();
+    renderTagList();
+}
+
+// 删除标签
+function deleteTag(tagName) {
+    if (!confirm(`确定要删除标签"${tagName}"吗？`)) {
+        return;
+    }
+    
+    const tags = getTags();
+    const index = tags.indexOf(tagName);
+    
+    if (index > -1) {
+        tags.splice(index, 1);
+        saveTags(tags);
+        
+        // 重新渲染
+        renderQuickTags();
+        renderTagList();
+    }
+}
+
+// 打开标签管理弹窗
+function openTagModal() {
+    tagModal.style.display = 'flex';
+    renderTagList();
+    newTagInput.focus();
+}
+
+// 关闭标签管理弹窗
+function closeTagModal() {
+    tagModal.style.display = 'none';
+    newTagInput.value = '';
+}
+
 // 事件监听
 startBtn.addEventListener('click', startWork);
 stopBtn.addEventListener('click', endWork);
@@ -359,6 +514,25 @@ resetFilterBtn.addEventListener('click', resetFilter);
 workNameInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !currentRecord.isActive) {
         startWork();
+    }
+});
+
+// 标签相关事件监听
+manageTagsBtn.addEventListener('click', openTagModal);
+closeModalBtn.addEventListener('click', closeTagModal);
+addTagBtn.addEventListener('click', addTag);
+
+// 新标签输入框回车键支持
+newTagInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        addTag();
+    }
+});
+
+// 点击弹窗外部关闭
+tagModal.addEventListener('click', (e) => {
+    if (e.target === tagModal) {
+        closeTagModal();
     }
 });
 

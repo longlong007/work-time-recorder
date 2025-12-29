@@ -114,12 +114,34 @@ main {
     margin-bottom: 20px;
 }
 
+.input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
 .input-label {
-    display: block;
     font-weight: 600;
     color: #333;
-    margin-bottom: 8px;
     font-size: 1em;
+}
+
+.btn-tag-manage {
+    background: #f3f4f6;
+    color: #667eea;
+    padding: 6px 12px;
+    font-size: 0.85em;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.btn-tag-manage:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
 }
 
 .work-name-input {
@@ -130,6 +152,7 @@ main {
     font-size: 1em;
     transition: all 0.3s ease;
     font-family: inherit;
+    margin-bottom: 10px;
 }
 
 .work-name-input:focus {
@@ -141,6 +164,215 @@ main {
 .work-name-input:disabled {
     background: #f3f4f6;
     cursor: not-allowed;
+}
+
+/* 快速标签 */
+.quick-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.quick-tag {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.quick-tag:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.quick-tag:active {
+    transform: translateY(0) scale(1);
+}
+
+/* 标签管理弹窗 */
+.tag-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.tag-modal-content {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.tag-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 2px solid #f3f4f6;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.tag-modal-header h3 {
+    margin: 0;
+    font-size: 1.3em;
+}
+
+.btn-close {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.tag-modal-body {
+    padding: 25px;
+    overflow-y: auto;
+}
+
+.tag-add-section {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tag-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 1em;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.tag-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-add-tag {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.btn-add-tag:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+}
+
+.tag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tag-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.tag-item:hover {
+    background: #f3f4f6;
+    transform: translateX(5px);
+}
+
+.tag-item-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 1em;
+}
+
+.btn-delete-tag {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.btn-delete-tag:hover {
+    background: #fecaca;
+    transform: scale(1.05);
+}
+
+.empty-tags {
+    text-align: center;
+    padding: 30px;
+    color: #9ca3af;
+    font-size: 1em;
 }
 
 /* 操作按钮 */

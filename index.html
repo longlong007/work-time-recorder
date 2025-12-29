@@ -30,13 +30,45 @@
 
             <!-- 工作内容输入 -->
             <div class="work-name-input-section" id="workNameSection">
-                <label for="workNameInput" class="input-label">📝 工作内容</label>
+                <div class="input-header">
+                    <label for="workNameInput" class="input-label">📝 工作内容</label>
+                    <button class="btn btn-tag-manage" id="manageTagsBtn">🏷️ 管理标签</button>
+                </div>
                 <input 
                     type="text" 
                     id="workNameInput" 
                     class="work-name-input" 
                     placeholder="请输入工作内容名称（可选）"
                     maxlength="50">
+                
+                <!-- 快速标签 -->
+                <div class="quick-tags" id="quickTags">
+                    <!-- 标签将通过 JavaScript 动态生成 -->
+                </div>
+            </div>
+
+            <!-- 标签管理弹窗 -->
+            <div class="tag-modal" id="tagModal" style="display: none;">
+                <div class="tag-modal-content">
+                    <div class="tag-modal-header">
+                        <h3>🏷️ 标签管理</h3>
+                        <button class="btn-close" id="closeModalBtn">✕</button>
+                    </div>
+                    <div class="tag-modal-body">
+                        <div class="tag-add-section">
+                            <input 
+                                type="text" 
+                                id="newTagInput" 
+                                class="tag-input" 
+                                placeholder="输入新标签名称"
+                                maxlength="20">
+                            <button class="btn btn-add-tag" id="addTagBtn">➕ 添加</button>
+                        </div>
+                        <div class="tag-list" id="tagList">
+                            <!-- 标签列表将通过 JavaScript 动态生成 -->
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 操作按钮 -->
