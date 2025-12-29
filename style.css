@@ -513,10 +513,39 @@ main {
     margin-bottom: 8px;
 }
 
+.history-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
 .history-date {
     font-weight: 600;
     color: #333;
     font-size: 1.1em;
+}
+
+.btn-delete-record {
+    background: transparent;
+    color: #9ca3af;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 0;
+}
+
+.history-item:hover .btn-delete-record {
+    opacity: 1;
+}
+
+.btn-delete-record:hover {
+    background: #fee2e2;
+    color: #ef4444;
+    transform: scale(1.1);
 }
 
 .history-duration {

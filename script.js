@@ -290,8 +290,11 @@ function renderHistory() {
         return `
             <div class="history-item">
                 <div class="history-item-header">
-                    <span class="history-date">${startDate}</span>
-                    <span class="history-duration">${duration}</span>
+                    <div class="history-header-left">
+                        <span class="history-date">${startDate}</span>
+                        <span class="history-duration">${duration}</span>
+                    </div>
+                    <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
                 </div>
                 ${workName ? `<div class="history-work-name">📝 ${escapeHtml(workName)}</div>` : ''}
                 <div class="history-time">
@@ -301,6 +304,15 @@ function renderHistory() {
             </div>
         `;
     }).join('');
+    
+    // 为删除按钮添加事件监听
+    document.querySelectorAll('.btn-delete-record').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const timestamp = btn.dataset.timestamp;
+            deleteRecord(timestamp);
+        });
+    });
 }
 
 // 更新统计信息
@@ -329,6 +341,20 @@ function updateStatistics() {
     
     todayTotal.textContent = formatDuration(todayTotalMs);
     weekTotal.textContent = formatDuration(weekTotalMs);
+}
+
+// 删除单条记录
+function deleteRecord(timestamp) {
+    if (!confirm('确定要删除这条记录吗？此操作不可恢复！')) {
+        return;
+    }
+    
+    const records = getHistoryRecords();
+    const filteredRecords = records.filter(record => record.startTime !== timestamp);
+    
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredRecords));
+    renderHistory();
+    updateStatistics();
 }
 
 // 清空记录
