@@ -229,7 +229,7 @@ function updateDisplay() {
         statusDot.className = 'status-dot stopped';
         statusText.textContent = '未开始';
         startBtn.disabled = false;
-        stopBtn.disabled = false;
+        stopBtn.disabled = true;
         elapsedTime.style.display = 'none';
         currentWorkName.style.display = 'none';
     }
