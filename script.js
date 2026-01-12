@@ -344,8 +344,11 @@ function updateStatistics() {
     const records = getHistoryRecords();
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 计算本周的开始时间(周一)
     const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const dayOfWeek = weekStart.getDay(); // 0(周日)到 6(周六)
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    weekStart.setDate(weekStart.getDate() - daysToMonday);
     
     let todayTotalMs = 0;
     let weekTotalMs = 0;
