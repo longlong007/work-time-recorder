@@ -405,10 +405,11 @@ function exportToCSV() {
     }
 
     // CSV表头
-    let csvContent = '开始时间,结束时间,工作时长(小时),工作内容\n';
+    let csvContent = '日期,开始时间,结束时间,工作时长(小时),工作内容\n';
 
     // 添加记录数据
     records.forEach(record => {
+        const date = formatDate(record.startTime);
         const startTime = formatTime(record.startTime);
         const endTime = formatTime(record.endTime);
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
@@ -417,7 +418,7 @@ function exportToCSV() {
         const escapedWorkName = workName.includes(',') || workName.includes('"') 
             ? `"${workName.replace(/"/g, '"\"')}"` 
             : workName;
-        csvContent += `${startTime},${endTime},${durationHours},${escapedWorkName}\n`;
+        csvContent += `${date},${startTime},${endTime},${durationHours},${escapedWorkName}\n`;
     });
 
     // 创建Blob对象
