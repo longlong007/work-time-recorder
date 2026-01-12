@@ -409,21 +409,27 @@ function exportToCSV() {
 
     // 添加记录数据
     records.forEach(record => {
-        const recordDate = new Date(record.startTime);
-        // 使用本地时间的标准日期格式 YYYY-MM-DD
-        const year = recordDate.getFullYear();
-        const month = String(recordDate.getMonth() + 1).padStart(2, '0');
-        const day = String(recordDate.getDate()).padStart(2, '0');
+        const startDate = new Date(record.startTime);
+        const endDate = new Date(record.endTime);
+        
+        // 日期格式 YYYY-MM-DD
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, '0');
+        const day = String(startDate.getDate()).padStart(2, '0');
         const date = `${year}-${month}-${day}`;
-        // 使用ISO格式的时间字符串
-        const startTime = new Date(record.startTime).toISOString().slice(0, 19);
-        const endTime = new Date(record.endTime).toISOString().slice(0, 19);
+        
+        // 完整的日期时间格式 YYYY-MM-DDTHH:MM:SS
+        const startTime = startDate.toISOString().slice(0, 19);
+        const endTime = endDate.toISOString().slice(0, 19);
+        
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
         const workName = record.workName || '';
+        
         // 处理工作内容中的逗号和引号
         const escapedWorkName = workName.includes(',') || workName.includes('"') 
-            ? `"${workName.replace(/"/g, '"\"')}"` 
+            ? `"${workName.replace(/"/g, '""')}"` 
             : workName;
+        
         csvContent += `${date},${startTime},${endTime},${durationHours},${escapedWorkName}\n`;
     });
 
@@ -458,7 +464,12 @@ function importFromCSV(event) {
     reader.onload = function(e) {
         try {
             const content = e.target.result;
-            const lines = content.split('\n');
+            console.log('CSV文件内容:', content);
+            
+            // 移除BOM标记（如果存在）
+            const cleanContent = content.replace(/^\ufeff/, '');
+            const lines = cleanContent.split(/\r?\n/); // 支持不同的换行符
+            console.log('分割后的行数:', lines.length);
             
             // 跳过表头
             if (lines.length < 2) {
@@ -468,69 +479,131 @@ function importFromCSV(event) {
 
             const newRecords = [];
             let errorCount = 0;
+            const errorDetails = [];
+
+            // 解析CSV行（处理引号包裹的字段）
+            const parseCSVLine = (text) => {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let j = 0; j < text.length; j++) {
+                    const char = text[j];
+                    if (char === '"') {
+                        if (inQuotes && text[j + 1] === '"') {
+                            current += '"';
+                            j++;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            };
 
             // 从第二行开始解析数据
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
+                console.log(`处理第${i}行:`, line);
                 if (!line) continue;
 
-                // 解析CSV行（处理引号包裹的字段）
-                const parseCSVLine = (text) => {
-                    const result = [];
-                    let current = '';
-                    let inQuotes = false;
-                    
-                    for (let j = 0; j < text.length; j++) {
-                        const char = text[j];
-                        if (char === '"') {
-                            if (inQuotes && text[j + 1] === '"') {
-                                current += '"';
-                                j++;
-                            } else {
-                                inQuotes = !inQuotes;
-                            }
-                        } else if (char === ',' && !inQuotes) {
-                            result.push(current);
-                            current = '';
-                        } else {
-                            current += char;
-                        }
-                    }
-                    result.push(current);
-                    return result;
-                };
-
                 const columns = parseCSVLine(line);
+                console.log(`第${i}行解析结果:`, columns);
                 
-                if (columns.length >= 5) {
-                    const [dateStr, startTimeStr, endTimeStr, durationHoursStr, workName] = columns;
-                    
-                    // 验证并转换时间
-                    const startTime = new Date(startTimeStr);
-                    const endTime = new Date(endTimeStr);
-                    const durationHours = parseFloat(durationHoursStr);
-
-                    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime()) || isNaN(durationHours)) {
-                        errorCount++;
-                        continue;
-                    }
-
-                    newRecords.push({
-                        startTime: startTime.toISOString(),
-                        endTime: endTime.toISOString(),
-                        duration: durationHours * 60 * 60 * 1000, // 转换为毫秒
-                        workName: workName || '未命名工作'
-                    });
+                // 至少需要4列（日期、开始时间、结束时间、时长）
+                if (columns.length < 4) {
+                    errorCount++;
+                    errorDetails.push(`第${i}行: 列数不足（需要至少4列，实际${columns.length}列）`);
+                    continue;
                 }
+                
+                const [dateStr, startTimeStr, endTimeStr, durationHoursStr, ...workNameParts] = columns;
+                const workName = workNameParts.join(',').trim(); // 处理工作内容中可能包含逗号的情况
+                
+                // 验证并转换时间
+                const startTime = new Date(startTimeStr);
+                const endTime = new Date(endTimeStr);
+                const durationHours = parseFloat(durationHoursStr);
+
+                // 验证时间有效性
+                if (isNaN(startTime.getTime())) {
+                    errorCount++;
+                    errorDetails.push(`第${i}行: 开始时间格式无效 (${startTimeStr})`);
+                    console.log(`第${i}行错误: 开始时间无效`, { startTimeStr });
+                    continue;
+                }
+                
+                if (isNaN(endTime.getTime())) {
+                    errorCount++;
+                    errorDetails.push(`第${i}行: 结束时间格式无效 (${endTimeStr})`);
+                    console.log(`第${i}行错误: 结束时间无效`, { endTimeStr });
+                    continue;
+                }
+                
+                if (isNaN(durationHours) || durationHours <= 0) {
+                    errorCount++;
+                    errorDetails.push(`第${i}行: 工作时长无效 (${durationHoursStr})`);
+                    console.log(`第${i}行错误: 工作时长无效`, { durationHoursStr });
+                    continue;
+                }
+                
+                // 验证时间逻辑
+                if (endTime <= startTime) {
+                    errorCount++;
+                    errorDetails.push(`第${i}行: 结束时间必须晚于开始时间`);
+                    console.log(`第${i}行错误: 时间逻辑错误`, { startTime, endTime });
+                    continue;
+                }
+                
+                console.log('解析成功的数据:', { 
+                    dateStr, 
+                    startTimeStr, 
+                    endTimeStr, 
+                    durationHoursStr,
+                    workName,
+                    startTime: startTime.toISOString(), 
+                    endTime: endTime.toISOString(), 
+                    durationHours 
+                });
+
+                newRecords.push({
+                    startTime: startTime.toISOString(),
+                    endTime: endTime.toISOString(),
+                    duration: durationHours * 60 * 60 * 1000, // 转换为毫秒
+                    workName: workName || '未命名工作'
+                });
             }
 
+            console.log('成功解析的记录数:', newRecords.length);
+            console.log('错误数:', errorCount);
+            
             if (newRecords.length === 0) {
-                alert('未能导入任何有效记录，请检查CSV文件格式');
+                let errorMsg = '未能导入任何有效记录，请检查CSV文件格式\n\n';
+                if (errorDetails.length > 0) {
+                    errorMsg += '错误详情:\n' + errorDetails.slice(0, 5).join('\n');
+                    if (errorDetails.length > 5) {
+                        errorMsg += `\n... 还有 ${errorDetails.length - 5} 个错误`;
+                    }
+                }
+                errorMsg += '\n\n期望的CSV格式:\n日期,开始时间,结束时间,工作时长(小时),工作内容\n2024-01-12,2024-01-12T09:00:00,2024-01-12T17:00:00,8.00,开发工作';
+                alert(errorMsg);
                 return;
             }
 
             // 合并到现有记录
-            if (!confirm(`将导入 ${newRecords.length} 条记录${errorCount > 0 ? `（${errorCount} 条记录因格式错误被跳过）` : ''}，是否继续？`)) {
+            let confirmMsg = `将导入 ${newRecords.length} 条记录`;
+            if (errorCount > 0) {
+                confirmMsg += `\n（${errorCount} 条记录因格式错误被跳过）`;
+            }
+            confirmMsg += '\n\n是否继续？';
+            
+            if (!confirm(confirmMsg)) {
                 return;
             }
 
@@ -546,11 +619,11 @@ function importFromCSV(event) {
             alert(`成功导入 ${newRecords.length} 条记录！`);
         } catch (error) {
             console.error('导入CSV失败:', error);
-            alert('导入CSV文件失败，请检查文件格式');
+            alert('导入CSV文件失败: ' + error.message + '\n\n请检查文件格式是否正确');
         }
     };
 
-    reader.readAsText(file);
+    reader.readAsText(file, 'UTF-8');
     
     // 清空文件输入，允许重复导入同一文件
     event.target.value = '';
