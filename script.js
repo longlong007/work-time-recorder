@@ -415,8 +415,9 @@ function exportToCSV() {
         const month = String(recordDate.getMonth() + 1).padStart(2, '0');
         const day = String(recordDate.getDate()).padStart(2, '0');
         const date = `${year}-${month}-${day}`;
-        const startTime = formatTime(record.startTime);
-        const endTime = formatTime(record.endTime);
+        // 使用ISO格式的时间字符串
+        const startTime = new Date(record.startTime).toISOString().slice(0, 19);
+        const endTime = new Date(record.endTime).toISOString().slice(0, 19);
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
         const workName = record.workName || '';
         // 处理工作内容中的逗号和引号
