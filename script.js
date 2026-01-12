@@ -404,6 +404,17 @@ function exportToCSV() {
         return;
     }
 
+    // 辅助函数：将Date对象转换为本地时间的ISO格式字符串 YYYY-MM-DDTHH:MM:SS
+    const toLocalISOString = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
     // CSV表头
     let csvContent = '日期,开始时间,结束时间,工作时长(小时),工作内容\n';
 
@@ -412,15 +423,15 @@ function exportToCSV() {
         const startDate = new Date(record.startTime);
         const endDate = new Date(record.endTime);
         
-        // 日期格式 YYYY-MM-DD
+        // 日期格式 YYYY-MM-DD（使用本地时间）
         const year = startDate.getFullYear();
         const month = String(startDate.getMonth() + 1).padStart(2, '0');
         const day = String(startDate.getDate()).padStart(2, '0');
         const date = `${year}-${month}-${day}`;
         
-        // 完整的日期时间格式 YYYY-MM-DDTHH:MM:SS
-        const startTime = startDate.toISOString().slice(0, 19);
-        const endTime = endDate.toISOString().slice(0, 19);
+        // 完整的日期时间格式 YYYY-MM-DDTHH:MM:SS（使用本地时间）
+        const startTime = toLocalISOString(startDate);
+        const endTime = toLocalISOString(endDate);
         
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
         const workName = record.workName || '';
@@ -443,7 +454,10 @@ function exportToCSV() {
     
     // 生成文件名（包含当前日期）
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     link.setAttribute('download', `工作记录_${dateStr}.csv`);
     
     // 触发下载
