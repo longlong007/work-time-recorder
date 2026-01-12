@@ -409,7 +409,9 @@ function exportToCSV() {
 
     // 添加记录数据
     records.forEach(record => {
-        const date = formatDate(record.startTime);
+        const recordDate = new Date(record.startTime);
+        // 使用标准日期格式 YYYY-MM-DD
+        const date = recordDate.toISOString().split('T')[0];
         const startTime = formatTime(record.startTime);
         const endTime = formatTime(record.endTime);
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
