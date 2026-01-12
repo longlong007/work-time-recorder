@@ -24,6 +24,9 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const historyList = document.getElementById('historyList');
 const clearBtn = document.getElementById('clearBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFileInput = document.getElementById('importFileInput');
 const filterDate = document.getElementById('filterDate');
 const filterBtn = document.getElementById('filterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
@@ -393,6 +396,159 @@ function deleteRecord(timestamp) {
     updateStatistics();
 }
 
+// 导出记录为CSV
+function exportToCSV() {
+    const records = getHistoryRecords();
+    if (records.length === 0) {
+        alert('没有可导出的记录');
+        return;
+    }
+
+    // CSV表头
+    let csvContent = '开始时间,结束时间,工作时长(小时),工作内容\n';
+
+    // 添加记录数据
+    records.forEach(record => {
+        const startTime = formatTime(record.startTime);
+        const endTime = formatTime(record.endTime);
+        const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
+        const workName = record.workName || '';
+        // 处理工作内容中的逗号和引号
+        const escapedWorkName = workName.includes(',') || workName.includes('"') 
+            ? `"${workName.replace(/"/g, '"\"')}"` 
+            : workName;
+        csvContent += `${startTime},${endTime},${durationHours},${escapedWorkName}\n`;
+    });
+
+    // 创建Blob对象
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // 创建下载链接
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    // 生成文件名（包含当前日期）
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    link.setAttribute('download', `工作记录_${dateStr}.csv`);
+    
+    // 触发下载
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// 导入CSV文件
+function importFromCSV(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const content = e.target.result;
+            const lines = content.split('\n');
+            
+            // 跳过表头
+            if (lines.length < 2) {
+                alert('CSV文件为空或格式不正确');
+                return;
+            }
+
+            const newRecords = [];
+            let errorCount = 0;
+
+            // 从第二行开始解析数据
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                // 解析CSV行（处理引号包裹的字段）
+                const parseCSVLine = (text) => {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let j = 0; j < text.length; j++) {
+                        const char = text[j];
+                        if (char === '"') {
+                            if (inQuotes && text[j + 1] === '"') {
+                                current += '"';
+                                j++;
+                            } else {
+                                inQuotes = !inQuotes;
+                            }
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current);
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current);
+                    return result;
+                };
+
+                const columns = parseCSVLine(line);
+                
+                if (columns.length >= 4) {
+                    const [startTimeStr, endTimeStr, durationHoursStr, workName] = columns;
+                    
+                    // 验证并转换时间
+                    const startTime = new Date(startTimeStr);
+                    const endTime = new Date(endTimeStr);
+                    const durationHours = parseFloat(durationHoursStr);
+
+                    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime()) || isNaN(durationHours)) {
+                        errorCount++;
+                        continue;
+                    }
+
+                    newRecords.push({
+                        startTime: startTime.toISOString(),
+                        endTime: endTime.toISOString(),
+                        duration: durationHours * 60 * 60 * 1000, // 转换为毫秒
+                        workName: workName || '未命名工作'
+                    });
+                }
+            }
+
+            if (newRecords.length === 0) {
+                alert('未能导入任何有效记录，请检查CSV文件格式');
+                return;
+            }
+
+            // 合并到现有记录
+            if (!confirm(`将导入 ${newRecords.length} 条记录${errorCount > 0 ? `（${errorCount} 条记录因格式错误被跳过）` : ''}，是否继续？`)) {
+                return;
+            }
+
+            const existingRecords = getHistoryRecords();
+            const allRecords = [...existingRecords, ...newRecords];
+            // 按开始时间倒序排列
+            allRecords.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
+
+            // 刷新显示
+            renderHistory();
+            updateStatistics();
+            alert(`成功导入 ${newRecords.length} 条记录！`);
+        } catch (error) {
+            console.error('导入CSV失败:', error);
+            alert('导入CSV文件失败，请检查文件格式');
+        }
+    };
+
+    reader.readAsText(file);
+    
+    // 清空文件输入，允许重复导入同一文件
+    event.target.value = '';
+}
+
 // 清空记录
 function clearHistory() {
     if (confirm('确定要清空所有历史记录吗？此操作不可恢复！')) {
@@ -571,6 +727,9 @@ stopBtn.addEventListener('click', endWork);
 clearBtn.addEventListener('click', clearHistory);
 filterBtn.addEventListener('click', applyFilter);
 resetFilterBtn.addEventListener('click', resetFilter);
+exportBtn.addEventListener('click', exportToCSV);
+importBtn.addEventListener('click', () => importFileInput.click());
+importFileInput.addEventListener('change', importFromCSV);
 
 // 工作内容输入框回车键支持
 workNameInput.addEventListener('keypress', (e) => {

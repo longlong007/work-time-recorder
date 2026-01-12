@@ -124,11 +124,18 @@
                 </button>
             </div>
 
+            <!-- 隐藏的文件输入元素 -->
+            <input type="file" id="importFileInput" accept=".csv" style="display: none;">
+
             <!-- 历史记录 -->
             <div class="history-section">
                 <div class="section-header">
                     <h2>📋 历史记录</h2>
-                    <button class="btn btn-clear" id="clearBtn">清空记录</button>
+                    <div class="header-actions">
+                        <button class="btn btn-export" id="exportBtn">📤 导出CSV</button>
+                        <button class="btn btn-import" id="importBtn">📥 导入CSV</button>
+                        <button class="btn btn-clear" id="clearBtn">清空记录</button>
+                    </div>
                 </div>
                 <div class="filter-bar">
                     <input type="date" id="filterDate" class="date-filter">
