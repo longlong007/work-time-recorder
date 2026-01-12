@@ -501,8 +501,8 @@ function importFromCSV(event) {
 
                 const columns = parseCSVLine(line);
                 
-                if (columns.length >= 4) {
-                    const [startTimeStr, endTimeStr, durationHoursStr, workName] = columns;
+                if (columns.length >= 5) {
+                    const [dateStr, startTimeStr, endTimeStr, durationHoursStr, workName] = columns;
                     
                     // 验证并转换时间
                     const startTime = new Date(startTimeStr);
