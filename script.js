@@ -410,8 +410,11 @@ function exportToCSV() {
     // 添加记录数据
     records.forEach(record => {
         const recordDate = new Date(record.startTime);
-        // 使用标准日期格式 YYYY-MM-DD
-        const date = recordDate.toISOString().split('T')[0];
+        // 使用本地时间的标准日期格式 YYYY-MM-DD
+        const year = recordDate.getFullYear();
+        const month = String(recordDate.getMonth() + 1).padStart(2, '0');
+        const day = String(recordDate.getDate()).padStart(2, '0');
+        const date = `${year}-${month}-${day}`;
         const startTime = formatTime(record.startTime);
         const endTime = formatTime(record.endTime);
         const durationHours = (record.duration / (1000 * 60 * 60)).toFixed(2);
