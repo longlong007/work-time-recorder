@@ -29,6 +29,7 @@ const filterBtn = document.getElementById('filterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
 const todayTotal = document.getElementById('todayTotal');
 const weekTotal = document.getElementById('weekTotal');
+const monthTotal = document.getElementById('monthTotal');
 
 // 标签相关 DOM 元素
 const quickTags = document.getElementById('quickTags');
@@ -352,6 +353,7 @@ function updateStatistics() {
     
     let todayTotalMs = 0;
     let weekTotalMs = 0;
+    let monthTotalMs = 0;
     
     records.forEach(record => {
         const recordDate = new Date(record.startTime);
@@ -364,10 +366,17 @@ function updateStatistics() {
         if (recordDate >= weekStart) {
             weekTotalMs += duration;
         }
+
+        // 计算本月总计
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (recordDate >= monthStart) {
+            monthTotalMs += duration;
+        }
     });
     
     todayTotal.textContent = formatDuration(todayTotalMs);
     weekTotal.textContent = formatDuration(weekTotalMs);
+    monthTotal.textContent = formatDuration(monthTotalMs);
 }
 
 // 删除单条记录
