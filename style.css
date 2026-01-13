@@ -338,6 +338,8 @@ main {
     background: #f9fafb;
     border-radius: 10px;
     transition: all 0.3s ease;
+    cursor: move;
+    user-select: none;
 }
 
 .tag-item:hover {
@@ -345,7 +347,29 @@ main {
     transform: translateX(5px);
 }
 
+.tag-item.dragging {
+    opacity: 0.5;
+    background: #e5e7eb;
+}
+
+.tag-item.drag-over {
+    border-top: 3px solid #667eea;
+}
+
+.tag-drag-handle {
+    color: #9ca3af;
+    font-size: 1.2em;
+    margin-right: 10px;
+    cursor: grab;
+    user-select: none;
+}
+
+.tag-drag-handle:active {
+    cursor: grabbing;
+}
+
 .tag-item-name {
+    flex: 1;
     font-weight: 600;
     color: #333;
     font-size: 1em;

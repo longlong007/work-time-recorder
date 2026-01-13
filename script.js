@@ -735,8 +735,9 @@ function renderTagList() {
         return;
     }
     
-    tagList.innerHTML = tags.map(tag => `
-        <div class="tag-item">
+    tagList.innerHTML = tags.map((tag, index) => `
+        <div class="tag-item" draggable="true" data-index="${index}" data-tag="${escapeHtml(tag)}">
+            <span class="tag-drag-handle">☰</span>
             <span class="tag-item-name">${escapeHtml(tag)}</span>
             <button class="btn-delete-tag" data-tag="${escapeHtml(tag)}">🗑️ 删除</button>
         </div>
@@ -744,10 +745,108 @@ function renderTagList() {
     
     // 为删除按钮添加事件
     document.querySelectorAll('.btn-delete-tag').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             deleteTag(btn.dataset.tag);
         });
     });
+    
+    // 初始化拖拽功能
+    initTagDragAndDrop();
+}
+
+// 初始化标签拖拽排序功能
+function initTagDragAndDrop() {
+    const tagItems = tagList.querySelectorAll('.tag-item');
+    let draggedElement = null;
+    
+    tagItems.forEach((item) => {
+        // 拖拽开始
+        item.addEventListener('dragstart', (e) => {
+            draggedElement = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', item.innerHTML);
+        });
+        
+        // 拖拽结束
+        item.addEventListener('dragend', (e) => {
+            item.classList.remove('dragging');
+            tagItems.forEach(tag => tag.classList.remove('drag-over'));
+            
+            // 根据当前DOM顺序更新标签数组
+            updateTagOrder();
+        });
+        
+        // 拖拽经过
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const afterElement = getDragAfterElement(tagList, e.clientY);
+            const dragging = tagList.querySelector('.dragging');
+            
+            if (afterElement == null) {
+                tagList.appendChild(dragging);
+            } else {
+                tagList.insertBefore(dragging, afterElement);
+            }
+        });
+        
+        // 拖拽进入
+        item.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            if (item !== draggedElement) {
+                item.classList.add('drag-over');
+            }
+        });
+        
+        // 拖拽离开
+        item.addEventListener('dragleave', (e) => {
+            item.classList.remove('drag-over');
+        });
+        
+        // 放置
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+        });
+    });
+}
+
+// 根据当前DOM顺序更新标签数组
+function updateTagOrder() {
+    const tagItems = tagList.querySelectorAll('.tag-item');
+    const newOrder = Array.from(tagItems).map(item => item.dataset.tag);
+    
+    // 验证新顺序是否与当前顺序不同
+    const currentTags = getTags();
+    const hasChanged = newOrder.length === currentTags.length && 
+        newOrder.some((tag, index) => tag !== currentTags[index]);
+    
+    if (hasChanged) {
+        // 保存新的顺序
+        saveTags(newOrder);
+        
+        // 更新快速标签显示
+        renderQuickTags();
+    }
+}
+
+// 获取拖拽后应该插入的位置
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.tag-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 // 添加标签
