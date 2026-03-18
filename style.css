@@ -525,7 +525,265 @@ main {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* 操作按钮 */
+/* 闹钟设置区域 */
+.alarm-section {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.alarm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.alarm-label {
+    font-weight: 600;
+    color: #333;
+    font-size: 1em;
+}
+
+/* 开关样式 */
+.alarm-toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.alarm-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.alarm-toggle input:checked + .toggle-slider {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+}
+
+.alarm-toggle input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* 闹钟选项区域 */
+.alarm-options {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alarm-options.active {
+    display: flex;
+}
+
+/* 预设按钮 */
+.preset-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.alarm-preset-btn {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #666;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.alarm-preset-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+    transform: translateY(-2px);
+}
+
+.alarm-preset-btn.selected {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: #667eea;
+    color: white;
+}
+
+/* 自定义时长输入 */
+.custom-alarm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.custom-alarm-input {
+    width: 80px;
+    padding: 8px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+}
+
+.custom-alarm-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.custom-alarm-unit {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.btn-set-alarm {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.btn-set-alarm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* 闹钟状态 */
+.alarm-status {
+    font-size: 0.9em;
+    color: #22c55e;
+    font-weight: 500;
+    padding: 8px 12px;
+    background: #dcfce7;
+    border-radius: 8px;
+    display: none;
+}
+
+.alarm-status.set {
+    display: block;
+}
+
+/* 闹钟提醒弹窗 */
+.alarm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    animation: fadeIn 0.3s ease;
+}
+
+.alarm-modal-content {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+.alarm-modal-icon {
+    font-size: 4em;
+    margin-bottom: 16px;
+    animation: bellShake 0.5s ease infinite;
+}
+
+@keyframes bellShake {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+}
+
+.alarm-modal-title {
+    font-size: 1.8em;
+    color: #333;
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.alarm-modal-message {
+    font-size: 1.1em;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.alarm-modal-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-continue {
+    flex: 1;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: white;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.btn-continue:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+}
+
+.btn-end {
+    flex: 1;
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: white;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.btn-end:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(248, 113, 113, 0.4);
+}
 .action-buttons {
     display: flex;
     gap: 15px;

@@ -52,11 +52,27 @@ const editEndTime = document.getElementById('editEndTime');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const saveEditBtn = document.getElementById('saveEditBtn');
 
+// 闹钟相关 DOM 元素
+const alarmSection = document.getElementById('alarmSection');
+const alarmToggle = document.getElementById('alarmToggle');
+const alarmOptions = document.getElementById('alarmOptions');
+const customAlarmMinutes = document.getElementById('customAlarmMinutes');
+const setAlarmBtn = document.getElementById('setAlarmBtn');
+const alarmStatus = document.getElementById('alarmStatus');
+const alarmModal = document.getElementById('alarmModal');
+const continueAlarmBtn = document.getElementById('continueAlarmBtn');
+const endAlarmBtn = document.getElementById('endAlarmBtn');
+
 // 当前正在编辑的记录
 let currentEditingRecord = null;
 
 let updateInterval = null;
 let filterDateValue = null;
+let alarmTimer = null;
+let alarmEnabled = false;
+let alarmMinutes = 0;
+
+// 闹钟音效（使用Web Audio API生成简单的提示音）
 
 // 初始化
 function init() {
@@ -117,6 +133,7 @@ function startWork() {
     saveCurrentRecord();
     updateDisplay();
     startElapsedTimer();
+    startAlarmTimer(); // 启动闹钟计时
     
     // 禁用输入框
     workNameInput.disabled = true;
@@ -152,6 +169,7 @@ function endWork() {
     renderHistory();
     updateStatistics();
     stopElapsedTimer();
+    clearAlarmTimer(); // 清除闹钟计时
     
     // 清空并启用输入框
     workNameInput.value = '';
@@ -1078,4 +1096,156 @@ init();
 if (currentRecord.isActive && currentRecord.startTime) {
     startElapsedTimer();
 }
+
+// ==================== 闹钟功能 ====================
+
+// 切换闹钟开关
+function toggleAlarm() {
+    alarmEnabled = alarmToggle.checked;
+    if (alarmEnabled) {
+        alarmOptions.classList.add('active');
+    } else {
+        alarmOptions.classList.remove('active');
+        clearAlarmTimer();
+        alarmStatus.textContent = '';
+        alarmMinutes = 0;
+    }
+}
+
+// 设置闹钟时长
+function setAlarmMinutes(minutes) {
+    alarmMinutes = minutes;
+    alarmStatus.textContent = `已设置 ${minutes} 分钟闹钟`;
+    alarmStatus.classList.add('set');
+}
+
+// 设置自定义时长
+function setCustomAlarm() {
+    const minutes = parseInt(customAlarmMinutes.value);
+    if (isNaN(minutes) || minutes < 1) {
+        alert('请输入有效的分钟数');
+        return;
+    }
+    if (minutes > 480) {
+        alert('最多只能设置480分钟（8小时）');
+        return;
+    }
+    setAlarmMinutes(minutes);
+}
+
+// 启动闹钟计时器
+function startAlarmTimer() {
+    if (!alarmEnabled || alarmMinutes <= 0) {
+        return;
+    }
+    
+    clearAlarmTimer();
+    
+    const alarmTimeMs = alarmMinutes * 60 * 1000;
+    alarmTimer = setTimeout(() => {
+        triggerAlarm();
+    }, alarmTimeMs);
+}
+
+// 清除闹钟计时器
+function clearAlarmTimer() {
+    if (alarmTimer) {
+        clearTimeout(alarmTimer);
+        alarmTimer = null;
+    }
+}
+
+// 触发闹钟
+function triggerAlarm() {
+    // 播放提示音
+    playAlarmSound();
+    
+    // 显示弹窗
+    alarmModal.style.display = 'flex';
+}
+
+// 播放闹钟提示音
+function playAlarmSound() {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // 创建提示音 - 三声短促的提示音
+        const playBeep = (time, duration, frequency) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, time + duration);
+            
+            oscillator.start(time);
+            oscillator.stop(time + duration);
+        };
+        
+        const now = audioContext.currentTime;
+        playBeep(now, 0.3, 880);
+        playBeep(now + 0.35, 0.3, 880);
+        playBeep(now + 0.7, 0.3, 880);
+        
+    } catch (e) {
+        console.log('无法播放提示音:', e);
+    }
+}
+
+// 点击继续按钮 - 继续计时
+function continueAlarm() {
+    alarmModal.style.display = 'none';
+    // 继续计时，重新启动闹钟计时器
+    startAlarmTimer();
+}
+
+// 点击结束按钮 - 结束工作
+function endFromAlarm() {
+    alarmModal.style.display = 'none';
+    // 执行结束工作
+    endWork();
+}
+
+// 初始化预设按钮事件
+function initAlarmPresetButtons() {
+    document.querySelectorAll('.alarm-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const minutes = parseInt(btn.dataset.minutes);
+            
+            // 清除其他按钮的选中状态
+            document.querySelectorAll('.alarm-preset-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            
+            setAlarmMinutes(minutes);
+        });
+    });
+}
+
+// 闹钟事件监听
+alarmToggle.addEventListener('change', toggleAlarm);
+setAlarmBtn.addEventListener('click', setCustomAlarm);
+continueAlarmBtn.addEventListener('click', continueAlarm);
+endAlarmBtn.addEventListener('click', endFromAlarm);
+
+// 预设按钮回车支持
+customAlarmMinutes.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        setCustomAlarm();
+    }
+});
+
+// 点击弹窗外部关闭（仅点击背景时，不执行任何操作，因为需要用户选择）
+alarmModal.addEventListener('click', (e) => {
+    if (e.target === alarmModal) {
+        // 不关闭弹窗，需要用户选择继续或结束
+    }
+});
+
+// 页面加载时初始化预设按钮
+initAlarmPresetButtons();
 
