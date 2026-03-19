@@ -7,138 +7,82 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>⏰ 工作时间记录器</h1>
-        </header>
+    <div class="app-container">
+        <div class="app-card">
+            <!-- 顶部标题区 -->
+            <div class="header-section">
+                <span class="header-icon">⏰</span>
+                <h1 class="header-title">工作时间记录器</h1>
+            </div>
 
-        <main>
-            <!-- 当前状态卡片 -->
-            <div class="status-card" id="statusCard">
-                <div class="status-indicator" id="statusIndicator">
+            <!-- 核心计时卡片 -->
+            <div class="timer-card" id="statusCard">
+                <div class="timer-status">
                     <span class="status-dot" id="statusDot"></span>
                     <span class="status-text" id="statusText">未开始</span>
                 </div>
+                <div class="timer-display" id="currentTime">--:--:--</div>
                 <div class="current-work-name" id="currentWorkName" style="display: none;">
-                    📝 <span id="currentWorkNameValue">工作内容</span>
+                    <span>📝</span>
+                    <span id="currentWorkNameValue">工作内容</span>
                 </div>
-                <div class="current-time" id="currentTime">--:--:--</div>
                 <div class="elapsed-time" id="elapsedTime" style="display: none;">
                     已工作: <span id="elapsedTimeValue">00:00:00</span>
                 </div>
             </div>
 
-            <!-- 工作内容输入 -->
-            <div class="work-name-input-section" id="workNameSection">
-                <div class="input-header">
-                    <label for="workNameInput" class="input-label">📝 工作内容</label>
-                    <button class="btn btn-tag-manage" id="manageTagsBtn">🏷️ 管理标签</button>
+            <!-- 工作内容输入区 -->
+            <div class="work-name-section" id="workNameSection">
+                <div class="input-row">
+                    <span class="input-label">工作名称</span>
+                    <input
+                        type="text"
+                        id="workNameInput"
+                        class="work-name-input"
+                        placeholder="请输入工作内容名称（可选）"
+                        maxlength="50">
                 </div>
-                <input 
-                    type="text" 
-                    id="workNameInput" 
-                    class="work-name-input" 
-                    placeholder="请输入工作内容名称（可选）"
-                    maxlength="50">
-                
-                <!-- 快速标签 -->
+            </div>
+
+            <!-- 标签选择区 -->
+            <div class="tag-section">
+                <div class="tag-header">
+                    <span class="tag-label">标签分类</span>
+                    <button class="btn-manage-tags" id="manageTagsBtn">管理标签</button>
+                </div>
                 <div class="quick-tags" id="quickTags">
                     <!-- 标签将通过 JavaScript 动态生成 -->
-                </div>
-            </div>
-
-            <!-- 标签管理弹窗 -->
-            <div class="tag-modal" id="tagModal" style="display: none;">
-                <div class="tag-modal-content">
-                    <div class="tag-modal-header">
-                        <h3>🏷️ 标签管理</h3>
-                        <button class="btn-close" id="closeModalBtn">✕</button>
-                    </div>
-                    <div class="tag-modal-body">
-                        <div class="tag-add-section">
-                            <input 
-                                type="text" 
-                                id="newTagInput" 
-                                class="tag-input" 
-                                placeholder="输入新标签名称"
-                                maxlength="20">
-                            <button class="btn btn-add-tag" id="addTagBtn">➕ 添加</button>
-                        </div>
-                        <div class="tag-list" id="tagList">
-                            <!-- 标签列表将通过 JavaScript 动态生成 -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 编辑记录弹窗 -->
-            <div class="edit-modal" id="editModal" style="display: none;">
-                <div class="edit-modal-content">
-                    <div class="edit-modal-header">
-                        <h3>✏️ 编辑记录</h3>
-                        <button class="btn-close" id="closeEditModalBtn">✕</button>
-                    </div>
-                    <div class="edit-modal-body">
-                        <div class="edit-form">
-                            <div class="form-group">
-                                <label for="editWorkName" class="form-label">📝 工作内容</label>
-                                <input 
-                                    type="text" 
-                                    id="editWorkName" 
-                                    class="form-input" 
-                                    placeholder="工作内容名称"
-                                    maxlength="50">
-                            </div>
-                            <div class="form-group">
-                                <label for="editStartTime" class="form-label">⏰ 开始时间</label>
-                                <input 
-                                    type="datetime-local" 
-                                    id="editStartTime" 
-                                    class="form-input">
-                            </div>
-                            <div class="form-group">
-                                <label for="editEndTime" class="form-label">⏰ 结束时间</label>
-                                <input 
-                                    type="datetime-local" 
-                                    id="editEndTime" 
-                                    class="form-input">
-                            </div>
-                            <div class="form-actions">
-                                <button class="btn btn-cancel" id="cancelEditBtn">取消</button>
-                                <button class="btn btn-save" id="saveEditBtn">💾 保存</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             <!-- 操作按钮 -->
             <div class="action-buttons">
                 <button class="btn btn-start" id="startBtn">
-                    <span class="btn-icon">▶</span>
+                    <span>▶</span>
                     开始工作
                 </button>
                 <button class="btn btn-stop" id="stopBtn" disabled>
-                    <span class="btn-icon">⏸</span>
+                    <span>⏸</span>
                     结束工作
                 </button>
             </div>
 
-            <!-- 闹钟设置区域 -->
-            <div class="alarm-section" id="alarmSection">
-                <div class="alarm-header">
-                    <span class="alarm-label">⏱️ 闹钟提醒</span>
+            <!-- 闹钟提醒设置区 -->
+            <div class="reminder-section" id="alarmSection">
+                <div class="reminder-header">
+                    <span class="reminder-icon">⏰</span>
+                    <span class="reminder-label">闹钟提醒</span>
                     <label class="alarm-toggle">
                         <input type="checkbox" id="alarmToggle">
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                <div class="alarm-options" id="alarmOptions">
+                <div class="reminder-options" id="alarmOptions">
                     <div class="preset-buttons">
-                        <button class="alarm-preset-btn" data-minutes="5">5分钟</button>
-                        <button class="alarm-preset-btn" data-minutes="15">15分钟</button>
-                        <button class="alarm-preset-btn" data-minutes="30">30分钟</button>
-                        <button class="alarm-preset-btn" data-minutes="45">45分钟</button>
+                        <button class="preset-btn" data-minutes="5">5分钟</button>
+                        <button class="preset-btn" data-minutes="15">15分钟</button>
+                        <button class="preset-btn" data-minutes="30">30分钟</button>
+                        <button class="preset-btn" data-minutes="45">45分钟</button>
                     </div>
                     <div class="custom-alarm">
                         <input type="number" id="customAlarmMinutes" class="custom-alarm-input" placeholder="自定义" min="1" max="480">
@@ -149,59 +93,130 @@
                 </div>
             </div>
 
-            <!-- 闹钟提醒弹窗 -->
-            <div class="alarm-modal" id="alarmModal" style="display: none;">
-                <div class="alarm-modal-content">
-                    <div class="alarm-modal-icon">🔔</div>
-                    <h3 class="alarm-modal-title">时间到！</h3>
-                    <p class="alarm-modal-message">您设置的闹钟时间已经到了</p>
-                    <div class="alarm-modal-actions">
-                        <button class="btn btn-continue" id="continueAlarmBtn">继续计时</button>
-                        <button class="btn btn-end" id="endAlarmBtn">结束工作</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 隐藏的文件输入元素 -->
-            <input type="file" id="importFileInput" accept=".csv" style="display: none;">
-
-            <!-- 历史记录 -->
+            <!-- 历史记录列表 -->
             <div class="history-section">
-                <div class="section-header">
-                    <h2>📋 历史记录</h2>
-                    <div class="header-actions">
-                        <button class="btn btn-export" id="exportBtn">📤 导出CSV</button>
-                        <button class="btn btn-import" id="importBtn">📥 导入CSV</button>
-                        <button class="btn btn-clear" id="clearBtn">清空记录</button>
+                <div class="history-header">
+                    <div class="history-title">
+                        <span>📋</span>
+                        <span>历史记录</span>
+                    </div>
+                    <div class="history-actions">
+                        <button class="btn-action btn-export" id="exportBtn">📤 导出</button>
+                        <button class="btn-action btn-import" id="importBtn">📥 导入</button>
+                        <button class="btn-action btn-clear" id="clearBtn">清空</button>
                     </div>
                 </div>
+
                 <div class="filter-bar">
                     <input type="date" id="filterDate" class="date-filter">
-                    <button class="btn btn-filter" id="filterBtn">筛选</button>
-                    <button class="btn btn-reset" id="resetFilterBtn">重置</button>
+                    <button class="btn-filter" id="filterBtn">筛选</button>
+                    <button class="btn-reset" id="resetFilterBtn">重置</button>
                 </div>
+
                 <div class="history-list" id="historyList">
                     <div class="empty-state">暂无记录</div>
                 </div>
-                <div class="statistics" id="statistics">
-                    <div class="stat-item">
-                        <span class="stat-label">今日总计</span>
-                        <span class="stat-value" id="todayTotal">00:00:00</span>
+            </div>
+
+            <!-- 统计区域 -->
+            <div class="statistics-section" id="statistics">
+                <div class="stat-item">
+                    <span class="stat-label">今日总计</span>
+                    <span class="stat-value" id="todayTotal">00:00:00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">本周总计</span>
+                    <span class="stat-value" id="weekTotal">00:00:00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">本月总计</span>
+                    <span class="stat-value" id="monthTotal">00:00:00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 标签管理弹窗 -->
+        <div class="modal" id="tagModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🏷️ 标签管理</h3>
+                    <button class="btn-close" id="closeModalBtn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="tag-add-section">
+                        <input
+                            type="text"
+                            id="newTagInput"
+                            class="tag-input"
+                            placeholder="输入新标签名称"
+                            maxlength="20">
+                        <button class="btn-add-tag" id="addTagBtn">➕ 添加</button>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">本周总计</span>
-                        <span class="stat-value" id="weekTotal">00:00:00</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">本月总计</span>
-                        <span class="stat-value" id="monthTotal">00:00:00</span>
+                    <div class="tag-list" id="tagList">
+                        <!-- 标签列表将通过 JavaScript 动态生成 -->
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
+
+        <!-- 编辑记录弹窗 -->
+        <div class="modal" id="editModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>✏️ 编辑记录</h3>
+                    <button class="btn-close" id="closeEditModalBtn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="edit-form">
+                        <div class="form-group">
+                            <label for="editWorkName" class="form-label">📝 工作内容</label>
+                            <input
+                                type="text"
+                                id="editWorkName"
+                                class="form-input"
+                                placeholder="工作内容名称"
+                                maxlength="50">
+                        </div>
+                        <div class="form-group">
+                            <label for="editStartTime" class="form-label">⏰ 开始时间</label>
+                            <input
+                                type="datetime-local"
+                                id="editStartTime"
+                                class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="editEndTime" class="form-label">⏰ 结束时间</label>
+                            <input
+                                type="datetime-local"
+                                id="editEndTime"
+                                class="form-input">
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-cancel" id="cancelEditBtn">取消</button>
+                            <button class="btn btn-save" id="saveEditBtn">💾 保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 闹钟提醒弹窗 -->
+        <div class="modal alarm-modal" id="alarmModal" style="display: none;">
+            <div class="modal-content alarm-modal-content">
+                <div class="alarm-modal-icon">🔔</div>
+                <h3 class="alarm-modal-title">时间到！</h3>
+                <p class="alarm-modal-message">您设置的闹钟时间已经到了</p>
+                <div class="alarm-modal-actions">
+                    <button class="btn btn-continue" id="continueAlarmBtn">继续计时</button>
+                    <button class="btn btn-end" id="endAlarmBtn">结束工作</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 隐藏的文件输入元素 -->
+        <input type="file" id="importFileInput" accept=".csv" style="display: none;">
     </div>
 
     <script src="script.js"></script>
 </body>
 </html>
-

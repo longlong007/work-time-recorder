@@ -241,11 +241,11 @@ function formatDate(dateString) {
 function updateDisplay() {
     if (currentRecord.isActive && currentRecord.startTime) {
         statusDot.className = 'status-dot active';
-        statusText.textContent = '工作中';
+        statusText.textContent = '进行中';
         startBtn.disabled = true;
         stopBtn.disabled = false;
         elapsedTime.style.display = 'block';
-        currentWorkName.style.display = 'block';
+        currentWorkName.style.display = 'flex';
         currentWorkNameValue.textContent = currentRecord.workName;
     } else {
         statusDot.className = 'status-dot stopped';
@@ -1213,14 +1213,14 @@ function endFromAlarm() {
 
 // 初始化预设按钮事件
 function initAlarmPresetButtons() {
-    document.querySelectorAll('.alarm-preset-btn').forEach(btn => {
+    document.querySelectorAll('.preset-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const minutes = parseInt(btn.dataset.minutes);
-            
+
             // 清除其他按钮的选中状态
-            document.querySelectorAll('.alarm-preset-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
-            
+
             setAlarmMinutes(minutes);
         });
     });
