@@ -84,9 +84,8 @@ function init() {
     loadTags();
     renderQuickTags();
     
-    // 设置默认筛选日期为今天
-    const today = new Date().toISOString().split('T')[0];
-    filterDate.value = today;
+    // 设置默认筛选日期为今天（使用本地时间）
+    filterDate.value = getLocalDateString(new Date());
 }
 
 // 加载当前记录
@@ -301,10 +300,10 @@ function renderHistory() {
     const records = getHistoryRecords();
     let filteredRecords = records;
     
-    // 应用日期筛选
+    // 应用日期筛选（使用本地时间，避免 UTC 偏差导致早晨记录归入前一天）
     if (filterDateValue) {
         filteredRecords = records.filter(record => {
-            const recordDate = new Date(record.startTime).toISOString().split('T')[0];
+            const recordDate = getLocalDateString(new Date(record.startTime));
             return recordDate === filterDateValue;
         });
     }
@@ -678,9 +677,17 @@ function applyFilter() {
 
 // 重置筛选
 function resetFilter() {
-    filterDate.value = new Date().toISOString().split('T')[0];
+    filterDate.value = getLocalDateString(new Date());
     filterDateValue = null;
     renderHistory();
+}
+
+// 获取本地日期字符串 YYYY-MM-DD（避免 UTC 偏差导致早晨记录归入前一天）
+function getLocalDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // HTML转义函数（防止XSS）
