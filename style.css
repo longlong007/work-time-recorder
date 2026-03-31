@@ -617,10 +617,11 @@ body {
 
 /* 闹钟提醒设置区 */
 .reminder-section {
-    background: #f9fafb;
-    border-radius: 12px;
-    padding: 12px 16px;
+    background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+    border-radius: 16px;
+    padding: 14px 16px;
     margin-bottom: 12px;
+    border: 1px solid #d8e9f5;
 }
 
 .reminder-header {
@@ -631,20 +632,20 @@ body {
 }
 
 .reminder-icon {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .reminder-label {
     font-size: 14px;
-    font-weight: 500;
-    color: #666;
+    font-weight: 600;
+    color: #4a7ea6;
     flex: 1;
 }
 
 .reminder-options {
     display: none;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .reminder-options.active {
@@ -702,32 +703,42 @@ body {
 /* 预设按钮 */
 .preset-buttons {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
 }
 
-.alarm-preset-btn {
-    background: white;
-    border: 2px solid #e5e7eb;
-    color: #666;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 0.9em;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 500;
-}
-
-.alarm-preset-btn:hover {
-    border-color: #5a9bc4;
+.preset-btn {
+    background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+    border: 1.5px solid #d0e6ff;
     color: #5a9bc4;
-    transform: translateY(-2px);
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
-.alarm-preset-btn.selected {
+.preset-btn:hover {
+    background: linear-gradient(135deg, #e0f0ff 0%, #d9ebff 100%);
+    border-color: #80c4ff;
+    color: #3d8ab8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(90, 155, 196, 0.2);
+}
+
+.preset-btn.selected {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    border-color: #5a9bc4;
+    border-color: #4a7ea6;
     color: white;
+    box-shadow: 0 4px 12px rgba(90, 155, 196, 0.35);
+}
+
+.preset-btn.selected:hover {
+    background: linear-gradient(135deg, #4a8eb4 0%, #3a6e96 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(90, 155, 196, 0.4);
 }
 
 /* 自定义时长输入 */
@@ -735,57 +746,71 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-top: 4px;
 }
 
 .custom-alarm-input {
-    width: 80px;
+    width: 70px;
     padding: 8px 12px;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 0.95em;
-    transition: all 0.3s ease;
+    border: 1.5px solid #d0e6ff;
+    border-radius: 20px;
+    font-size: 0.9em;
+    transition: all 0.25s ease;
+    background: linear-gradient(135deg, #f8fcff 0%, #f0f7ff 100%);
+    font-family: inherit;
 }
 
 .custom-alarm-input:focus {
     outline: none;
     border-color: #5a9bc4;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
+}
+
+.custom-alarm-input::placeholder {
+    color: #a0c4e8;
 }
 
 .custom-alarm-unit {
-    color: #666;
-    font-size: 0.9em;
+    color: #5a9bc4;
+    font-size: 0.85em;
+    font-weight: 500;
 }
 
 .btn-set-alarm {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
     color: white;
-    padding: 8px 16px;
+    padding: 8px 14px;
     border: none;
-    border-radius: 8px;
-    font-size: 0.9em;
+    border-radius: 20px;
+    font-size: 0.85em;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.25s ease;
     font-weight: 500;
+    box-shadow: 0 3px 10px rgba(90, 155, 196, 0.25);
 }
 
 .btn-set-alarm:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(90, 155, 196, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(90, 155, 196, 0.35);
 }
 
 /* 闹钟状态 */
 .alarm-status {
-    font-size: 0.9em;
-    color: #1a9e4a;
+    font-size: 0.85em;
+    color: #3d8ab8;
     font-weight: 500;
-    padding: 8px 12px;
-    background: #dcfce7;
-    border-radius: 8px;
+    padding: 8px 14px;
+    background: linear-gradient(135deg, #e8f5ff 0%, #dcf0ff 100%);
+    border-radius: 20px;
     display: none;
+    margin-top: 6px;
 }
 
 .alarm-status.set {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* 闹钟提醒弹窗 */
