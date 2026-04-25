@@ -1,3 +1,89 @@
+/* ===== CSS 变量定义 ===== */
+:root {
+    /* 背景色 */
+    --bg-gradient-1: #d4dfe8;
+    --bg-gradient-2: #b8cad8;
+    --bg-gradient-3: #9ab5c4;
+    
+    /* 卡片 */
+    --card-bg: rgba(255, 255, 255, 0.85);
+    --card-shadow: rgba(0, 0, 0, 0.06);
+    
+    /* 主色调 */
+    --primary-gradient: linear-gradient(135deg, #6a9ec0 0%, #4a7ea6 100%);
+    --primary-solid: #5a9bc4;
+    --primary-dark: #4a7ea6;
+    
+    /* 文字色 */
+    --text-primary: #333;
+    --text-secondary: #666;
+    --text-muted: #9ca3af;
+    --text-on-primary: white;
+    
+    /* 边框 */
+    --border-color: #e5e7eb;
+    --border-focus: #5a9bc4;
+    
+    /* 背景层 */
+    --bg-light: #f9fafb;
+    --bg-lighter: #f3f4f6;
+    --bg-input: #f9fafb;
+    
+    /* 状态色 */
+    --success-bg: #dbeafe;
+    --success-text: #3b82f6;
+    --danger-bg: #fee2e2;
+    --danger-text: #ef4444;
+    
+    /* 历史记录 */
+    --history-border: #f3f4f6;
+    --history-bg: #f9fafb;
+    --history-hover: #f3f4f6;
+    
+    /* 标签 */
+    --tag-bg: #f3f4f6;
+}
+
+[data-theme="dark"] {
+    /* 背景 */
+    --bg-gradient-1: #1a1a2e;
+    --bg-gradient-2: #16213e;
+    --bg-gradient-3: #0f3460;
+    
+    /* 卡片 */
+    --card-bg: rgba(30, 30, 50, 0.9);
+    --card-shadow: rgba(0, 0, 0, 0.3);
+    
+    /* 文字 */
+    --text-primary: #e5e5e5;
+    --text-secondary: #b0b0b0;
+    --text-muted: #808080;
+    
+    /* 边框 */
+    --border-color: #3a3a4a;
+    --border-focus: #5a9bc4;
+    
+    /* 背景层 */
+    --bg-light: #2a2a3a;
+    --bg-lighter: #252535;
+    --bg-input: #2a2a3a;
+    
+    /* 状态色 */
+    --success-bg: #1a3a5c;
+    --success-text: #6ba3d6;
+    --danger-bg: #4a2020;
+    --danger-text: #e07070;
+    
+    /* 历史记录 */
+    --history-border: #3a3a4a;
+    --history-bg: #2a2a3a;
+    --history-hover: #3a3a4a;
+    
+    /* 标签 */
+    --tag-bg: #3a3a4a;
+}
+
+/* ===== 基础样式 ===== */
 * {
     margin: 0;
     padding: 0;
@@ -6,10 +92,11 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-    background: linear-gradient(135deg, #d4dfe8 0%, #b8cad8 50%, #9ab5c4 100%);
+    background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 50%, var(--bg-gradient-3) 100%);
     min-height: 100vh;
     padding: 8px;
-    color: #333;
+    color: var(--text-primary);
+    transition: background 0.3s, color 0.3s;
 }
 
 .app-container {
@@ -26,11 +113,12 @@ body {
 .app-card {
     width: 100%;
     max-width: 672px;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--card-bg);
     backdrop-filter: blur(8px);
     border-radius: 24px;
     padding: 16px 20px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 8px 30px var(--card-shadow);
+    transition: background 0.3s;
 }
 
 /* 顶部标题区 */
@@ -49,18 +137,19 @@ body {
 .header-title {
     font-size: 20px;
     font-weight: 700;
-    color: #333;
+    color: var(--text-primary);
 }
 
 /* 核心计时卡片 */
 .timer-card {
-    background: linear-gradient(135deg, #6a9ec0 0%, #4a7ea6 100%);
+    background: var(--primary-gradient);
     border-radius: 20px;
     padding: 24px;
     text-align: center;
     margin-bottom: 12px;
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 6px 16px rgba(90, 159, 194, 0.3);
+    transition: background 0.3s;
 }
 
 .timer-status {
@@ -87,7 +176,7 @@ body {
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--text-on-primary);
     display: inline-block;
     animation: pulse 2s infinite;
 }
@@ -151,7 +240,7 @@ body {
 
 .work-name-section .input-label {
     font-size: 14px;
-    color: #666;
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -163,18 +252,18 @@ body {
     font-size: 14px;
     transition: all 0.3s ease;
     font-family: inherit;
-    background: #f9fafb;
+    background: var(--bg-light);
 }
 
 .work-name-section .work-name-input:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     background: white;
     box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
 }
 
 .work-name-section .work-name-input:disabled {
-    background: #f3f4f6;
+    background: var(--bg-lighter);
     cursor: not-allowed;
     opacity: 0.7;
 }
@@ -193,12 +282,12 @@ body {
 
 .tag-label {
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .btn-manage-tags {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 6px 14px;
     font-size: 12px;
     border: none;
@@ -216,7 +305,7 @@ body {
 
 .btn-tag-manage {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 6px 12px;
     font-size: 0.85em;
     border: none;
@@ -235,7 +324,7 @@ body {
 .work-name-input {
     width: 100%;
     padding: 12px 16px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     font-size: 1em;
     transition: all 0.3s ease;
@@ -245,12 +334,12 @@ body {
 
 .work-name-input:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
 }
 
 .work-name-input:disabled {
-    background: #f3f4f6;
+    background: var(--bg-lighter);
     cursor: not-allowed;
 }
 
@@ -278,7 +367,7 @@ body {
 
 .quick-tag.selected {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 4px 10px rgba(90, 155, 196, 0.3);
 }
 
@@ -341,7 +430,7 @@ body {
     padding: 20px 25px;
     border-bottom: 2px solid #f3f4f6;
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .tag-modal-header h3 {
@@ -351,7 +440,7 @@ body {
 
 .btn-close {
     background: rgba(255, 255, 255, 0.2);
-    color: white;
+    color: var(--text-on-primary);
     border: none;
     width: 32px;
     height: 32px;
@@ -383,7 +472,7 @@ body {
 .tag-input {
     flex: 1;
     padding: 10px 14px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     font-size: 1em;
     transition: all 0.3s ease;
@@ -392,13 +481,13 @@ body {
 
 .tag-input:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
 }
 
 .btn-add-tag {
     background: linear-gradient(135deg, #3dbf6b 0%, #1a9e4a 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 10px 18px;
     border: none;
     border-radius: 10px;
@@ -425,7 +514,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
-    background: #f9fafb;
+    background: var(--bg-light);
     border-radius: 10px;
     transition: all 0.3s ease;
     cursor: move;
@@ -433,7 +522,7 @@ body {
 }
 
 .tag-item:hover {
-    background: #f3f4f6;
+    background: var(--bg-lighter);
     transform: translateX(5px);
 }
 
@@ -447,7 +536,7 @@ body {
 }
 
 .tag-drag-handle {
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 1.2em;
     margin-right: 10px;
     cursor: grab;
@@ -461,13 +550,13 @@ body {
 .tag-item-name {
     flex: 1;
     font-weight: 600;
-    color: #333;
+    color: var(--text-primary);
     font-size: 1em;
 }
 
 .btn-delete-tag {
     background: #fee2e2;
-    color: #ef4444;
+    color: var(--danger-text);
     border: none;
     padding: 6px 12px;
     border-radius: 8px;
@@ -485,7 +574,7 @@ body {
 .empty-tags {
     text-align: center;
     padding: 30px;
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 1em;
 }
 
@@ -524,7 +613,7 @@ body {
     padding: 20px 25px;
     border-bottom: 2px solid #f3f4f6;
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .edit-modal-header h3 {
@@ -552,14 +641,14 @@ body {
 
 .form-label {
     font-weight: 600;
-    color: #333;
+    color: var(--text-primary);
     font-size: 0.95em;
 }
 
 .form-input {
     width: 100%;
     padding: 12px 16px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     font-size: 1em;
     transition: all 0.3s ease;
@@ -568,7 +657,7 @@ body {
 
 .form-input:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
 }
 
@@ -580,7 +669,7 @@ body {
 
 .btn-cancel {
     flex: 1;
-    background: #f3f4f6;
+    background: var(--bg-lighter);
     color: #6b7280;
     padding: 12px 20px;
     border: none;
@@ -599,7 +688,7 @@ body {
 .btn-save {
     flex: 1;
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 12px 20px;
     border: none;
     border-radius: 10px;
@@ -685,7 +774,7 @@ body {
     width: 16px;
     left: 3px;
     bottom: 3px;
-    background-color: white;
+    background-color: var(--text-on-primary);
     transition: 0.3s;
     border-radius: 50%;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -780,7 +869,7 @@ body {
 .preset-btn.selected {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
     border-color: #4a7ea6;
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 4px 12px rgba(90, 155, 196, 0.35);
 }
 
@@ -811,7 +900,7 @@ body {
 
 .custom-alarm-input:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     background: white;
     box-shadow: 0 0 0 3px rgba(90, 155, 196, 0.1);
 }
@@ -828,7 +917,7 @@ body {
 
 .btn-set-alarm {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 8px 14px;
     border: none;
     border-radius: 20px;
@@ -902,14 +991,14 @@ body {
 
 .alarm-modal-title {
     font-size: 1.8em;
-    color: #333;
+    color: var(--text-primary);
     margin-bottom: 12px;
     font-weight: 700;
 }
 
 .alarm-modal-message {
     font-size: 1.1em;
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 30px;
 }
 
@@ -921,7 +1010,7 @@ body {
 .btn-continue {
     flex: 1;
     background: linear-gradient(135deg, #3dbf6b 0%, #1a9e4a 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 14px 20px;
     border: none;
     border-radius: 12px;
@@ -939,7 +1028,7 @@ body {
 .btn-end {
     flex: 1;
     background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 14px 20px;
     border: none;
     border-radius: 12px;
@@ -989,7 +1078,7 @@ body {
 
 .btn-start {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 4px 10px rgba(90, 155, 196, 0.2);
 }
 
@@ -999,7 +1088,7 @@ body {
 
 .btn-stop {
     background: linear-gradient(135deg, #e6a854 0%, #d9904a 100%);
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 4px 10px rgba(255, 179, 102, 0.2);
 }
 
@@ -1008,15 +1097,15 @@ body {
 }
 
 .btn-clear {
-    background: #f3f4f6;
-    color: #ef4444;
+    background: var(--bg-lighter);
+    color: var(--danger-text);
     padding: 8px 16px;
     font-size: 0.9em;
 }
 
 .btn-filter, .btn-reset {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 8px 16px;
     font-size: 0.9em;
 }
@@ -1043,7 +1132,7 @@ body {
     gap: 6px;
     font-size: 14px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-secondary);
 }
 
 .history-actions {
@@ -1063,19 +1152,19 @@ body {
 
 .btn-export {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 2px 6px rgba(90, 155, 196, 0.2);
 }
 
 .btn-import {
     background: linear-gradient(135deg, #4dbfad 0%, #229a8c 100%);
-    color: white;
+    color: var(--text-on-primary);
     box-shadow: 0 2px 6px rgba(51, 204, 179, 0.2);
 }
 
 .btn-clear {
     background: linear-gradient(135deg, #e090a8 0%, #cc7a8e 100%);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .filter-bar {
@@ -1093,12 +1182,12 @@ body {
     border-radius: 10px;
     font-size: 13px;
     transition: all 0.3s;
-    background: #f9fafb;
+    background: var(--bg-light);
 }
 
 .date-filter:focus {
     outline: none;
-    border-color: #5a9bc4;
+    border-color: var(--border-focus);
     background: white;
 }
 
@@ -1111,7 +1200,7 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
 }
 
 .btn-reset {
@@ -1130,12 +1219,12 @@ body {
 .empty-state {
     text-align: center;
     padding: 20px;
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
 .history-item {
-    background: #f9fafb;
+    background: var(--bg-light);
     border-radius: 10px;
     padding: 10px 12px;
     margin-bottom: 8px;
@@ -1143,7 +1232,7 @@ body {
 }
 
 .history-item:hover {
-    background: #f3f4f6;
+    background: var(--bg-lighter);
     transform: translateX(5px);
 }
 
@@ -1163,7 +1252,7 @@ body {
 
 .history-date {
     font-weight: 600;
-    color: #333;
+    color: var(--text-primary);
     font-size: 1.1em;
 }
 
@@ -1181,7 +1270,7 @@ body {
 .btn-edit-record,
 .btn-delete-record {
     background: transparent;
-    color: #9ca3af;
+    color: var(--text-muted);
     border: none;
     padding: 4px 8px;
     border-radius: 6px;
@@ -1192,19 +1281,19 @@ body {
 
 .btn-edit-record:hover {
     background: #dbeafe;
-    color: #3b82f6;
+    color: var(--success-text);
     transform: scale(1.1);
 }
 
 .btn-delete-record:hover {
     background: #fee2e2;
-    color: #ef4444;
+    color: var(--danger-text);
     transform: scale(1.1);
 }
 
 .history-duration {
     background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
-    color: white;
+    color: var(--text-on-primary);
     padding: 4px 12px;
     border-radius: 20px;
     font-weight: 600;
@@ -1253,7 +1342,7 @@ body {
 
 .statistics-section .stat-label {
     display: block;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 11px;
     margin-bottom: 4px;
 }
@@ -1336,3 +1425,59 @@ body {
     }
 }
 
+
+/* ===== 深色模式切换按钮 ===== */
+.theme-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.3s;
+    margin-left: auto;
+}
+
+.theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+[data-theme="dark"] .theme-toggle {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===== 深色模式额外适配 ===== */
+[data-theme="dark"] .modal-content {
+    background: #2a2a3a;
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-input {
+    background: var(--bg-input);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .history-item {
+    background: var(--history-bg);
+    border-color: var(--history-border);
+}
+
+[data-theme="dark"] .history-item:hover {
+    background: var(--history-hover);
+}
+
+[data-theme="dark"] .empty-state {
+    color: var(--text-muted);
+}
+
+[data-theme="dark"] .preset-btn,
+[data-theme="dark"] .custom-alarm-input {
+    background: var(--bg-lighter);
+    color: var(--text-primary);
+}

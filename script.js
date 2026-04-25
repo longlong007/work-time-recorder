@@ -55,6 +55,9 @@ const saveEditBtn = document.getElementById('saveEditBtn');
 // 闹钟相关 DOM 元素
 const alarmSection = document.getElementById('alarmSection');
 const alarmToggle = document.getElementById('alarmToggle');
+
+// 主题切换 DOM 元素
+const themeToggle = document.getElementById('themeToggle');
 const alarmOptions = document.getElementById('alarmOptions');
 const customAlarmMinutes = document.getElementById('customAlarmMinutes');
 const setAlarmBtn = document.getElementById('setAlarmBtn');
@@ -89,6 +92,8 @@ function init() {
     loadTags();
     renderQuickTags();
     initNotificationUI();
+    initTheme();
+    registerServiceWorker();
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
@@ -690,6 +695,54 @@ function resetFilter() {
 }
 
 // 获取本地日期字符串 YYYY-MM-DD（避免 UTC 偏差导致早晨记录归入前一天）
+// ==================== 主题切换功能 ====================
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeToggle.textContent = '☀️';
+    } else {
+        themeToggle.textContent = '🌙';
+    }
+    
+    // 监听系统主题变化
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            if (e.matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                themeToggle.textContent = '🌙';
+            }
+        }
+    });
+}
+
+function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    
+    if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+        themeToggle.textContent = '🌙';
+    } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+        themeToggle.textContent = '☀️';
+    }
+}
+
+// 绑定主题切换按钮事件
+if (themeToggle) {
+    themeToggle.addEventListener('click', toggleTheme);
+}
+
+// ==================== 日期工具函数 ====================
+
 function getLocalDateString(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
