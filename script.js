@@ -1513,13 +1513,56 @@ customAlarmMinutes.addEventListener('keypress', (e) => {
     }
 });
 
-// 点击弹窗外部关闭（仅点击背景时，不执行任何操作，因为需要用户选择）
-alarmModal.addEventListener('click', (e) => {
-    if (e.target === alarmModal) {
-        // 不关闭弹窗，需要用户选择继续或结束
+// ==================== 快捷键支持 ====================
+
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // 忽略在输入框中的按键
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+        
+        // 空格键：开始/结束工作
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (startBtn.disabled) {
+                endWork();
+            } else {
+                startWork();
+            }
+        }
+        
+        // Ctrl+E / Cmd+E：导出数据
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+            e.preventDefault();
+            exportToCSV();
+        }
+        
+        // Ctrl+/：显示快捷键提示
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            showKeyboardShortcuts();
+        }
+    });
+}
+
+function showKeyboardShortcuts() {
+    const tips = [
+        '⌨️ 快捷键提示：',
+        '空格 - 开始/结束工作',
+        'Ctrl+E - 导出数据',
+        'Ctrl+/ - 显示此提示'
+    ].join('\n');
+    alert(tips);
+}
+
+// 页面加载时初始化
+initKeyboardShortcuts();
+
+// 预设按钮回车支持
+customAlarmMinutes.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        setCustomAlarm();
     }
 });
-
-// 页面加载时初始化预设按钮
-initAlarmPresetButtons();
 

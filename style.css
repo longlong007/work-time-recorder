@@ -1481,3 +1481,24 @@ body {
     background: var(--bg-lighter);
     color: var(--text-primary);
 }
+
+/* ===== 快捷键提示 ===== */
+.keyboard-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+}
+
+.keyboard-hint kbd {
+    background: var(--bg-lighter);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .keyboard-hint kbd {
+    background: #3a3a4a;
+}
