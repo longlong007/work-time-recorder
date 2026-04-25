@@ -62,6 +62,8 @@ const alarmStatus = document.getElementById('alarmStatus');
 const alarmModal = document.getElementById('alarmModal');
 const continueAlarmBtn = document.getElementById('continueAlarmBtn');
 const endAlarmBtn = document.getElementById('endAlarmBtn');
+const notifyPermissionBtn = document.getElementById('notifyPermissionBtn');
+const notifyStatus = document.getElementById('notifyStatus');
 
 // 当前正在编辑的记录
 let currentEditingRecord = null;
@@ -86,6 +88,7 @@ function init() {
     startClock();
     loadTags();
     renderQuickTags();
+    initNotificationUI();
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
@@ -1110,6 +1113,98 @@ if (currentRecord.isActive && currentRecord.startTime) {
 
 // ==================== 闹钟功能 ====================
 
+function initNotificationUI() {
+    if (!notifyPermissionBtn || !notifyStatus) {
+        return;
+    }
+    updateNotificationStatus();
+    notifyPermissionBtn.addEventListener('click', requestNotificationPermission);
+}
+
+function updateNotificationStatus() {
+    if (!notifyStatus) {
+        return;
+    }
+
+    if (!('Notification' in window)) {
+        notifyStatus.textContent = '当前浏览器不支持桌面通知';
+        if (notifyPermissionBtn) {
+            notifyPermissionBtn.disabled = true;
+        }
+        return;
+    }
+
+    if (notifyPermissionBtn) {
+        notifyPermissionBtn.disabled = false;
+    }
+
+    if (Notification.permission === 'granted') {
+        notifyStatus.textContent = '已开启，到点将弹出系统通知';
+    } else if (Notification.permission === 'denied') {
+        notifyStatus.textContent = '已拒绝。请在浏览器设置中允许本站通知。';
+    } else {
+        notifyStatus.textContent = '未开启，需点击「开启系统通知」授权。';
+    }
+}
+
+function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        return;
+    }
+
+    const request = () => {
+        if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+            updateNotificationStatus();
+            return;
+        }
+        const result = Notification.requestPermission();
+        if (result && typeof result.then === 'function') {
+            result.then(() => {
+                updateNotificationStatus();
+            }).catch((e) => {
+                console.log('请求通知权限失败:', e);
+                if (notifyStatus) {
+                    notifyStatus.textContent = '无法请求权限，请重试。';
+                }
+            });
+        } else {
+            updateNotificationStatus();
+        }
+    };
+
+    try {
+        request();
+    } catch (e) {
+        console.log('请求通知权限失败:', e);
+        if (notifyStatus) {
+            notifyStatus.textContent = '无法请求权限，请重试。';
+        }
+    }
+}
+
+function showAlarmNotification() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+        return;
+    }
+
+    const body = alarmMinutes > 0
+        ? `闹钟时间到（已设 ${alarmMinutes} 分钟）`
+        : '闹钟时间到';
+
+    try {
+        const n = new Notification('工作时间记录器', {
+            body,
+            tag: 'work-time-alarm'
+        });
+        n.onclick = () => {
+            window.focus();
+            n.close();
+        };
+    } catch (e) {
+        console.log('无法显示系统通知:', e);
+    }
+}
+
 // 切换闹钟开关
 function toggleAlarm() {
     alarmEnabled = alarmToggle.checked;
@@ -1253,6 +1348,9 @@ function releaseAlarmAudio() {
 function triggerAlarm() {
     // 播放提示音
     playAlarmSound();
+
+    // 系统桌面通知（需用户事先授权，浏览器保持打开且标签页/定时器可运行；最小化通常仍可显示）
+    showAlarmNotification();
     
     // 显示弹窗
     alarmModal.style.display = 'flex';

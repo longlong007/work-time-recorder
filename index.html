@@ -91,6 +91,13 @@
                         <button class="btn-set-alarm" id="setAlarmBtn">设置</button>
                     </div>
                     <div class="alarm-status" id="alarmStatus"></div>
+                    <div class="notify-hint" id="notifyHint">
+                        在浏览器允许通知后，窗口最小化时也可在桌面收到闹钟提醒。完全退出浏览器后无法推送（本页为纯静态，无服务器推送）。
+                    </div>
+                    <div class="notify-row">
+                        <button type="button" class="btn-notify" id="notifyPermissionBtn" aria-describedby="notifyHint">开启系统通知</button>
+                        <span class="notify-status" id="notifyStatus" role="status"></span>
+                    </div>
                 </div>
             </div>
 

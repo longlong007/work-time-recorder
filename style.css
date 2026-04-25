@@ -698,6 +698,55 @@ body {
 .alarm-toggle input:checked + .toggle-slider:before {
     transform: translateX(18px);
 }
+
+/* 桌面系统通知 */
+.notify-hint {
+    font-size: 0.75em;
+    line-height: 1.4;
+    color: #5a6f82;
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    border: 1px solid #d0e3f0;
+}
+
+.notify-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 4px;
+}
+
+.btn-notify {
+    border: 1.5px solid #4a7ea6;
+    background: linear-gradient(135deg, #5a9bc4 0%, #4a7ea6 100%);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(90, 155, 196, 0.25);
+}
+
+.btn-notify:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(90, 155, 196, 0.35);
+}
+
+.btn-notify:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.notify-status {
+    font-size: 0.8em;
+    color: #4a6b80;
+    flex: 1;
+    min-width: 140px;
 }
 
 /* 预设按钮 */
