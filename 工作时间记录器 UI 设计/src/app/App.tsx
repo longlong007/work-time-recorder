@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlarmClock, Clock, Edit, Calendar, Play, Pause } from 'lucide-react';
-import exampleImage from 'figma:asset/a091d72d43ca85712c4ce386c8704e2829121fba.png';
 import { TimerCard } from './components/TimerCard';
 import { ActionButtons } from './components/ActionButtons';
 import { ReminderSettings } from './components/ReminderSettings';
@@ -28,7 +26,9 @@ export default function App() {
   const [isManagingTags, setIsManagingTags] = useState(false);
   const [tags, setTags] = useState(['开发', '会议', '学习', '调试', '文档', '定计划']);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const intervalRef = useRef<number | null>(null);
+  const lastAlarmAtElapsedRef = useRef(-1);
 
   useEffect(() => {
     if (isRunning) {
@@ -48,10 +48,27 @@ export default function App() {
   }, [isRunning]);
 
   useEffect(() => {
-    if (reminderEnabled && isRunning && elapsedTime > 0 && elapsedTime % (reminderTime * 60) === 0) {
-      // 播放提醒音或显示通知
-      console.log('提醒：已工作 ' + reminderTime + ' 分钟');
+    if (!isRunning) {
+      lastAlarmAtElapsedRef.current = -1;
     }
+  }, [isRunning]);
+
+  useEffect(() => {
+    if (!reminderEnabled || !isRunning || reminderTime <= 0) {
+      return;
+    }
+    const period = reminderTime * 60;
+    if (elapsedTime <= 0 || elapsedTime < period) {
+      return;
+    }
+    if (elapsedTime % period !== 0) {
+      return;
+    }
+    if (lastAlarmAtElapsedRef.current === elapsedTime) {
+      return;
+    }
+    lastAlarmAtElapsedRef.current = elapsedTime;
+    setAlarmModalOpen(true);
   }, [elapsedTime, reminderEnabled, reminderTime, isRunning]);
 
   const handleStart = () => {
@@ -60,6 +77,7 @@ export default function App() {
   };
 
   const handleStop = () => {
+    setAlarmModalOpen(false);
     if (isRunning && startTime && currentTask) {
       const endTime = new Date();
       const record: WorkRecord = {
@@ -78,6 +96,10 @@ export default function App() {
     setStartTime(null);
     setCurrentTask('');
     setSelectedTag('');
+  };
+
+  const handleContinueAfterAlarm = () => {
+    setAlarmModalOpen(false);
   };
 
   const formatTime = (seconds: number) => {
@@ -221,6 +243,53 @@ export default function App() {
           formatTime={formatTime}
         />
       </div>
+
+      {alarmModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="alarm-dialog-title"
+          aria-describedby="alarm-dialog-desc"
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl sm:rounded-3xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-3 text-center text-4xl" aria-hidden>
+              🔔
+            </div>
+            <h2
+              id="alarm-dialog-title"
+              className="text-center text-lg font-semibold text-gray-800"
+            >
+              时间到！
+            </h2>
+            <p
+              id="alarm-dialog-desc"
+              className="mt-2 text-center text-sm text-gray-600"
+            >
+              已工作 {reminderTime} 分钟，闹钟时间已到。
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={handleContinueAfterAlarm}
+                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[#80d4ff] to-[#66ccff] px-4 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgb(102,204,255,0.2)]"
+              >
+                继续计时
+              </button>
+              <button
+                type="button"
+                onClick={handleStop}
+                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[#ffcc80] to-[#ffb366] px-4 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgb(255,179,102,0.2)]"
+              >
+                结束工作
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
