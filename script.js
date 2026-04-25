@@ -99,6 +99,15 @@ function init() {
     filterDate.value = getLocalDateString(new Date());
 }
 
+// ==================== PWA 注册 ====================
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/work-time-recorder/sw.js')
+            .then(() => console.log('Service Worker 注册成功'))
+            .catch((err) => console.log('Service Worker 注册失败:', err));
+    }
+}
+
 // 加载当前记录
 function loadCurrentRecord() {
     const saved = localStorage.getItem('currentRecord');

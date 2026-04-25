@@ -1,0 +1,24 @@
+{
+  "name": "工作时间记录器",
+  "short_name": "工时记录",
+  "description": "简洁美观的工作时间记录工具",
+  "start_url": "/work-time-recorder/",
+  "display": "standalone",
+  "background_color": "#d4dfe8",
+  "theme_color": "#5a9bc4",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%235a9bc4' width='512' height='512' rx='96'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='280'>⏰</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%235a9bc4' width='192' height='192' rx='32'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='100'>⏰</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
