@@ -71,6 +71,9 @@ let filterDateValue = null;
 let alarmTimer = null;
 let alarmEnabled = false;
 let alarmMinutes = 0;
+let alarmAudioContext = null;
+let alarmAudioUnlocked = false;
+let alarmAudioUnlockPromise = null;
 
 // 闹钟音效（使用Web Audio API生成简单的提示音）
 
@@ -169,6 +172,7 @@ function endWork() {
     updateStatistics();
     stopElapsedTimer();
     clearAlarmTimer(); // 清除闹钟计时
+    releaseAlarmAudio();
     
     // 清空并启用输入框
     workNameInput.value = '';
@@ -1111,9 +1115,11 @@ function toggleAlarm() {
     alarmEnabled = alarmToggle.checked;
     if (alarmEnabled) {
         alarmOptions.classList.add('active');
+        unlockAlarmAudio();
     } else {
         alarmOptions.classList.remove('active');
         clearAlarmTimer();
+        releaseAlarmAudio();
         alarmStatus.textContent = '';
         alarmMinutes = 0;
     }
@@ -1124,6 +1130,7 @@ function setAlarmMinutes(minutes) {
     alarmMinutes = minutes;
     alarmStatus.textContent = `已设置 ${minutes} 分钟闹钟`;
     alarmStatus.classList.add('set');
+    unlockAlarmAudio();
 }
 
 // 设置自定义时长
@@ -1162,6 +1169,86 @@ function clearAlarmTimer() {
     }
 }
 
+function getAlarmAudioContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+        return null;
+    }
+
+    if (!alarmAudioContext || alarmAudioContext.state === 'closed') {
+        alarmAudioContext = new AudioContextClass();
+        alarmAudioUnlocked = false;
+    }
+
+    return alarmAudioContext;
+}
+
+function playSilentUnlockTone(audioContext) {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.01);
+}
+
+function unlockAlarmAudio() {
+    const audioContext = getAlarmAudioContext();
+    if (!audioContext) {
+        return Promise.resolve(false);
+    }
+
+    try {
+        // Safari 需要在用户手势中解锁 Web Audio，后续定时器触发时才能稳定发声。
+        playSilentUnlockTone(audioContext);
+    } catch (e) {
+        console.log('无法预解锁提示音:', e);
+    }
+
+    if (alarmAudioUnlockPromise) {
+        return alarmAudioUnlockPromise;
+    }
+
+    const resumePromise = audioContext.state === 'suspended'
+        ? audioContext.resume()
+        : Promise.resolve();
+
+    alarmAudioUnlockPromise = resumePromise
+        .then(() => {
+            alarmAudioUnlocked = audioContext.state === 'running';
+            return alarmAudioUnlocked;
+        })
+        .catch((e) => {
+            console.log('无法启用提示音:', e);
+            return false;
+        })
+        .finally(() => {
+            alarmAudioUnlockPromise = null;
+        });
+
+    return alarmAudioUnlockPromise;
+}
+
+function releaseAlarmAudio() {
+    if (!alarmAudioContext) {
+        return;
+    }
+
+    const audioContext = alarmAudioContext;
+    alarmAudioContext = null;
+    alarmAudioUnlocked = false;
+    alarmAudioUnlockPromise = null;
+
+    if (audioContext.state !== 'closed') {
+        audioContext.close().catch((e) => {
+            console.log('无法关闭提示音:', e);
+        });
+    }
+}
+
 // 触发闹钟
 function triggerAlarm() {
     // 播放提示音
@@ -1172,9 +1259,28 @@ function triggerAlarm() {
 }
 
 // 播放闹钟提示音
-function playAlarmSound() {
+async function playAlarmSound() {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAlarmAudioContext();
+        if (!audioContext) {
+            console.log('当前浏览器不支持提示音');
+            return;
+        }
+
+        if (alarmAudioUnlockPromise) {
+            await alarmAudioUnlockPromise;
+        }
+
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+
+        if (audioContext.state !== 'running') {
+            console.log('提示音尚未启用，请先点击页面上的闹钟开关或设置按钮');
+            return;
+        }
+
+        alarmAudioUnlocked = true;
         
         // 创建提示音 - 三声短促的提示音
         const playBeep = (time, duration, frequency) => {
@@ -1194,7 +1300,7 @@ function playAlarmSound() {
             oscillator.stop(time + duration);
         };
         
-        const now = audioContext.currentTime;
+        const now = audioContext.currentTime + 0.05;
         playBeep(now, 0.3, 880);
         playBeep(now + 0.35, 0.3, 880);
         playBeep(now + 0.7, 0.3, 880);
@@ -1207,6 +1313,7 @@ function playAlarmSound() {
 // 点击继续按钮 - 继续计时
 function continueAlarm() {
     alarmModal.style.display = 'none';
+    unlockAlarmAudio();
     // 继续计时，重新启动闹钟计时器
     startAlarmTimer();
 }
