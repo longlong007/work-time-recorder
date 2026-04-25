@@ -7,7 +7,31 @@
 - 已安装 Git
 - 拥有 GitHub 账号
 
-## 部署步骤
+## 自动部署到 GitHub Pages
+
+本仓库已包含 GitHub Actions 部署配置：`.github/workflows/pages.yml`。合并到 `main` 后，GitHub 会自动把仓库根目录发布到 GitHub Pages。
+
+### 首次启用
+
+1. 打开 GitHub 仓库页面，进入 "Settings" > "Pages"。
+2. 在 "Build and deployment" 的 "Source" 中选择 "GitHub Actions"。
+3. 保存后，后续每次推送到 `main` 都会自动部署。
+
+### 手动触发部署
+
+如需手动重新部署：
+
+1. 打开仓库的 "Actions" 页面。
+2. 选择 "Deploy GitHub Pages"。
+3. 点击 "Run workflow"。
+
+部署完成后，网站地址为：
+
+```text
+https://longlong007.github.io/work-time-recorder/
+```
+
+## 手动部署步骤
 
 ### 1. 初始化 Git 仓库
 
