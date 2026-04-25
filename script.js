@@ -58,6 +58,10 @@ const alarmToggle = document.getElementById('alarmToggle');
 
 // 主题切换 DOM 元素
 const themeToggle = document.getElementById('themeToggle');
+
+// 语音输入 DOM 元素
+const voiceBtn = document.getElementById('voiceBtn');
+const voiceToggle = document.getElementById('voiceToggle');
 const alarmOptions = document.getElementById('alarmOptions');
 const customAlarmMinutes = document.getElementById('customAlarmMinutes');
 const setAlarmBtn = document.getElementById('setAlarmBtn');
@@ -97,6 +101,11 @@ function init() {
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
+    
+    // 如果开启了语音快捷键，默认聚焦到工作名称输入框
+    if (voiceToggle && voiceToggle.checked) {
+        workNameInput.focus();
+    }
 }
 
 // ==================== PWA 注册 ====================
@@ -1555,6 +1564,143 @@ function showKeyboardShortcuts() {
     ].join('\n');
     alert(tips);
 }
+
+function showKeyboardShortcuts() {
+    const tips = [
+        '⌨️ 快捷键提示：',
+        '空格 - 开始/结束工作',
+        'Ctrl+E - 导出数据',
+        'V - 语音输入（需开启语音开关）',
+        'Ctrl+/ - 显示此提示'
+    ].join('\n');
+    alert(tips);
+}
+
+// ==================== 语音输入功能 ====================
+
+let recognition = null;
+let isListening = false;
+
+function initVoiceInput() {
+    // 检查浏览器是否支持语音识别
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        voiceToggle.disabled = true;
+        voiceToggle.parentElement.title = '当前浏览器不支持语音输入';
+        return;
+    }
+    
+    // 语音按钮点击事件
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', toggleVoiceInput);
+    }
+    
+    // V 键快捷键
+    document.addEventListener('keydown', (e) => {
+        // 忽略在输入框中的按键（但V键在输入框中应该也能触发）
+        if (e.target.tagName === 'INPUT' && e.code !== 'KeyV') {
+            return;
+        }
+        
+        if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // 开启语音开关时，V键触发语音输入
+            if (voiceToggle && voiceToggle.checked) {
+                e.preventDefault();
+                toggleVoiceInput();
+            }
+        }
+    });
+}
+
+function toggleVoiceInput() {
+    if (isListening) {
+        stopVoiceInput();
+    } else {
+        startVoiceInput();
+    }
+}
+
+function startVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    
+    try {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'zh-CN';
+        
+        recognition.onstart = () => {
+            isListening = true;
+            updateVoiceButtonState(true);
+        };
+        
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+            
+            // 实时更新输入框
+            if (interimTranscript) {
+                workNameInput.value = workNameInput.value + interimTranscript;
+            }
+            if (finalTranscript) {
+                workNameInput.value = workNameInput.value.replace(interimTranscript, '') + finalTranscript;
+            }
+        };
+        
+        recognition.onerror = (event) => {
+            console.log('语音识别错误:', event.error);
+            isListening = false;
+            updateVoiceButtonState(false);
+        };
+        
+        recognition.onend = () => {
+            isListening = false;
+            updateVoiceButtonState(false);
+        };
+        
+        recognition.start();
+    } catch (e) {
+        console.log('语音识别启动失败:', e);
+        isListening = false;
+        updateVoiceButtonState(false);
+    }
+}
+
+function stopVoiceInput() {
+    if (recognition) {
+        recognition.stop();
+    }
+    isListening = false;
+    updateVoiceButtonState(false);
+}
+
+function updateVoiceButtonState(listening) {
+    if (voiceBtn) {
+        if (listening) {
+            voiceBtn.classList.add('listening');
+            voiceBtn.textContent = '🔴';
+        } else {
+            voiceBtn.classList.remove('listening');
+            voiceBtn.textContent = '🎤';
+        }
+    }
+    if (voiceToggle) {
+        voiceToggle.checked = listening;
+    }
+}
+
+// 初始化语音输入
+initVoiceInput();
 
 // 页面加载时初始化
 initKeyboardShortcuts();
