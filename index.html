@@ -70,7 +70,7 @@
                     结束工作
                 </button>
             </div>
-            <div class="keyboard-hint">按 <kbd>空格</kbd> 开始/结束 · <kbd>Ctrl+E</kbd> 导出 · <kbd>V</kbd> 语音（需开启开关）</div>
+            <div class="keyboard-hint">按 <kbd>空格</kbd> 开始/结束 · <kbd>Ctrl+E</kbd> 导出 · <kbd>Ctrl+V</kbd> 语音（需开启开关）</div>
 
             <!-- 闹钟提醒设置区 -->
             <div class="reminder-section" id="alarmSection">
@@ -103,14 +103,18 @@
                         <button type="button" class="btn-notify" id="notifyPermissionBtn" aria-describedby="notifyHint">开启系统通知</button>
                         <span class="notify-status" id="notifyStatus" role="status"></span>
                     </div>
-                    <div class="voice-row">
-                        <label class="voice-toggle">
-                            <input type="checkbox" id="voiceToggle">
-                            <span class="toggle-slider"></span>
-                            <span class="voice-label">🎤 快捷键语音</span>
-                        </label>
-                        <span class="voice-hint">按 <kbd>V</kbd> 键开始语音输入</span>
-                    </div>
+                </div>
+            </div>
+
+            <!-- 语音快捷键设置区 -->
+            <div class="voice-section">
+                <div class="voice-row">
+                    <label class="voice-toggle">
+                        <input type="checkbox" id="voiceToggle">
+                        <span class="toggle-slider"></span>
+                        <span class="voice-label">🎤 快捷键语音</span>
+                    </label>
+                    <span class="voice-hint">按 <kbd>Ctrl+V</kbd> 开始/停止语音输入</span>
                 </div>
             </div>
 
