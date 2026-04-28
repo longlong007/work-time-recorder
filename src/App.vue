@@ -23,6 +23,19 @@ const isActive = (path: string) => computed(() => route.path === path)
 <template>
   <div class="app-container" :data-theme="settingsStore.theme">
     <div class="app-card">
+      <!-- Header with title and theme toggle -->
+      <header class="header-section">
+        <span class="header-icon">⏱️</span>
+        <h1 class="header-title">工作计时器</h1>
+        <button
+          class="theme-toggle"
+          @click="settingsStore.toggleTheme"
+          :title="settingsStore.theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"
+        >
+          {{ settingsStore.theme === 'dark' ? '☀️' : '🌙' }}
+        </button>
+      </header>
+
       <RouterView />
     </div>
 
