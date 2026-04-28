@@ -18,6 +18,9 @@ desktop.ini
 工作时间记录器 UI 设计/node_modules/
 工作时间记录器 UI 设计/dist/
 
+# 工作tree目录
+.worktrees/
+
 # 不需要忽略的文件（GitHub Pages需要这些文件）
 # index.html
 # style.css
