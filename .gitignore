@@ -17,6 +17,9 @@ desktop.ini
 # 前端子项目（Vite）构建与依赖
 工作时间记录器 UI 设计/node_modules/
 工作时间记录器 UI 设计/dist/
+node_modules/
+dist/
+npm-cache/
 
 # 不需要忽略的文件（GitHub Pages需要这些文件）
 # index.html

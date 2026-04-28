@@ -1,6 +1,7 @@
 // 数据存储键
 const STORAGE_KEY = 'workTimeRecords';
 const TAGS_STORAGE_KEY = 'workTags';
+const VOICE_SHORTCUT_STORAGE_KEY = 'voiceShortcutEnabled';
 
 // 状态管理
 let currentRecord = {
@@ -98,6 +99,7 @@ function init() {
     initNotificationUI();
     initTheme();
     registerServiceWorker();
+    loadVoiceShortcutPreference();
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
@@ -1297,6 +1299,9 @@ function setAlarmMinutes(minutes) {
     alarmStatus.textContent = `已设置 ${minutes} 分钟闹钟`;
     alarmStatus.classList.add('set');
     unlockAlarmAudio();
+    if (currentRecord.isActive) {
+        startAlarmTimer();
+    }
 }
 
 // 设置自定义时长
@@ -1509,6 +1514,8 @@ function initAlarmPresetButtons() {
     });
 }
 
+initAlarmPresetButtons();
+
 // 闹钟事件监听
 alarmToggle.addEventListener('change', toggleAlarm);
 setAlarmBtn.addEventListener('click', setCustomAlarm);
@@ -1560,17 +1567,7 @@ function showKeyboardShortcuts() {
         '⌨️ 快捷键提示：',
         '空格 - 开始/结束工作',
         'Ctrl+E - 导出数据',
-        'Ctrl+/ - 显示此提示'
-    ].join('\n');
-    alert(tips);
-}
-
-function showKeyboardShortcuts() {
-    const tips = [
-        '⌨️ 快捷键提示：',
-        '空格 - 开始/结束工作',
-        'Ctrl+E - 导出数据',
-        'V - 语音输入（需开启语音开关）',
+        'Ctrl+V - 语音输入（需开启语音开关）',
         'Ctrl+/ - 显示此提示'
     ].join('\n');
     alert(tips);
@@ -1582,34 +1579,41 @@ let recognition = null;
 let isListening = false;
 
 function initVoiceInput() {
-    // 检查浏览器是否支持语音识别
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        voiceToggle.disabled = true;
-        voiceToggle.parentElement.title = '当前浏览器不支持语音输入';
+        if (voiceToggle) {
+            voiceToggle.disabled = true;
+            voiceToggle.parentElement.title = '当前浏览器不支持语音输入';
+        }
         return;
     }
-    
-    // 语音按钮点击事件
+
     if (voiceBtn) {
         voiceBtn.addEventListener('click', toggleVoiceInput);
     }
-    
-    // V 键快捷键
+
+    if (voiceToggle) {
+        voiceToggle.addEventListener('change', saveVoiceShortcutPreference);
+    }
+
+    // Ctrl+V 快捷键
     document.addEventListener('keydown', (e) => {
-        // 忽略在输入框中的按键（但V键在输入框中应该也能触发）
-        if (e.target.tagName === 'INPUT' && e.code !== 'KeyV') {
-            return;
-        }
-        
-        if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            // 开启语音开关时，V键触发语音输入
-            if (voiceToggle && voiceToggle.checked) {
-                e.preventDefault();
-                toggleVoiceInput();
-            }
+        const isVoiceShortcut = e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyV';
+        if (isVoiceShortcut && voiceToggle && voiceToggle.checked) {
+            e.preventDefault();
+            toggleVoiceInput();
         }
     });
+}
+
+function loadVoiceShortcutPreference() {
+    if (!voiceToggle) return;
+    voiceToggle.checked = localStorage.getItem(VOICE_SHORTCUT_STORAGE_KEY) === 'true';
+}
+
+function saveVoiceShortcutPreference() {
+    if (!voiceToggle) return;
+    localStorage.setItem(VOICE_SHORTCUT_STORAGE_KEY, String(voiceToggle.checked));
 }
 
 function toggleVoiceInput() {
@@ -1623,55 +1627,55 @@ function toggleVoiceInput() {
 function startVoiceInput() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
-    
+
     try {
         recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = 'zh-CN';
-        
+
         recognition.onstart = () => {
             isListening = true;
             updateVoiceButtonState(true);
         };
-        
+
         recognition.onresult = (event) => {
             let finalTranscript = '';
             let interimTranscript = '';
-            
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
+                const t = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    finalTranscript += transcript;
+                    finalTranscript += t;
                 } else {
-                    interimTranscript += transcript;
+                    interimTranscript += t;
                 }
             }
-            
-            // 实时更新输入框
             if (interimTranscript) {
-                workNameInput.value = workNameInput.value + interimTranscript;
+                workNameInput.value += interimTranscript;
             }
             if (finalTranscript) {
-                workNameInput.value = workNameInput.value.replace(interimTranscript, '') + finalTranscript;
+                workNameInput.value += finalTranscript;
             }
         };
-        
+
         recognition.onerror = (event) => {
             console.log('语音识别错误:', event.error);
-            isListening = false;
-            updateVoiceButtonState(false);
+            if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
+                stopVoiceInput();
+            }
         };
-        
+
         recognition.onend = () => {
             isListening = false;
+            recognition = null;
             updateVoiceButtonState(false);
         };
-        
+
         recognition.start();
     } catch (e) {
         console.log('语音识别启动失败:', e);
         isListening = false;
+        recognition = null;
         updateVoiceButtonState(false);
     }
 }
@@ -1679,23 +1683,20 @@ function startVoiceInput() {
 function stopVoiceInput() {
     if (recognition) {
         recognition.stop();
+        recognition = null;
     }
     isListening = false;
     updateVoiceButtonState(false);
 }
 
 function updateVoiceButtonState(listening) {
-    if (voiceBtn) {
-        if (listening) {
-            voiceBtn.classList.add('listening');
-            voiceBtn.textContent = '🔴';
-        } else {
-            voiceBtn.classList.remove('listening');
-            voiceBtn.textContent = '🎤';
-        }
-    }
-    if (voiceToggle) {
-        voiceToggle.checked = listening;
+    if (!voiceBtn) return;
+    if (listening) {
+        voiceBtn.classList.add('listening');
+        voiceBtn.textContent = '🔴';
+    } else {
+        voiceBtn.classList.remove('listening');
+        voiceBtn.textContent = '🎤';
     }
 }
 
