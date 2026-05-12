@@ -227,6 +227,97 @@ body {
     margin-top: 10px;
 }
 
+/* 闹钟进度条 */
+.alarm-progress {
+    margin-top: 16px;
+    padding: 0 4px;
+    animation: alarmProgressFadeIn 0.3s ease;
+}
+
+@keyframes alarmProgressFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alarm-progress-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 6px;
+    opacity: 0.95;
+}
+
+.alarm-progress-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.5px;
+}
+
+.alarm-progress-label::before {
+    content: '⏳';
+    font-size: 14px;
+}
+
+.alarm-progress-remaining {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+}
+
+.alarm-progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.alarm-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ffffff 0%, #e6f4ff 100%);
+    border-radius: 999px;
+    transition: width 0.5s linear, background 0.3s ease;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+}
+
+.alarm-progress.warning .alarm-progress-bar {
+    background: linear-gradient(90deg, #ffe9a8 0%, #ffd166 100%);
+    box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
+
+.alarm-progress.warning .alarm-progress-remaining {
+    color: #fff3c2;
+}
+
+.alarm-progress.danger .alarm-progress-bar {
+    background: linear-gradient(90deg, #ffb4a2 0%, #ff6b6b 100%);
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.7);
+    animation: alarmProgressPulse 1.2s ease-in-out infinite;
+}
+
+.alarm-progress.danger .alarm-progress-remaining {
+    color: #ffd6d1;
+}
+
+@keyframes alarmProgressPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
 /* 工作内容输入区 */
 .work-name-section {
     margin-bottom: 12px;

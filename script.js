@@ -73,6 +73,11 @@ const endAlarmBtn = document.getElementById('endAlarmBtn');
 const notifyPermissionBtn = document.getElementById('notifyPermissionBtn');
 const notifyStatus = document.getElementById('notifyStatus');
 
+// 闹钟进度条 DOM 元素
+const alarmProgress = document.getElementById('alarmProgress');
+const alarmProgressBar = document.getElementById('alarmProgressBar');
+const alarmRemainingValue = document.getElementById('alarmRemainingValue');
+
 // 当前正在编辑的记录
 let currentEditingRecord = null;
 
@@ -81,6 +86,8 @@ let filterDateValue = null;
 let alarmTimer = null;
 let alarmEnabled = false;
 let alarmMinutes = 0;
+// 当前闹钟周期的开始时间戳（毫秒），用于绘制进度条
+let alarmStartedAt = 0;
 let alarmAudioContext = null;
 let alarmAudioUnlocked = false;
 let alarmAudioUnlockPromise = null;
@@ -316,6 +323,7 @@ function startElapsedTimer() {
             const elapsed = calculateDuration(currentRecord.startTime, new Date().toISOString());
             elapsedTimeValue.textContent = formatDuration(elapsed);
         }
+        updateAlarmProgress();
     }, 1000);
 }
 
@@ -325,6 +333,59 @@ function stopElapsedTimer() {
         clearInterval(updateInterval);
     }
     elapsedTimeValue.textContent = '00:00:00';
+}
+
+// 格式化剩余时间（mm:ss，≥1小时显示 hh:mm:ss）
+function formatRemaining(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+// 显示闹钟进度条
+function showAlarmProgress() {
+    if (!alarmProgress) return;
+    alarmProgress.style.display = 'block';
+    updateAlarmProgress();
+}
+
+// 隐藏闹钟进度条
+function hideAlarmProgress() {
+    if (!alarmProgress) return;
+    alarmProgress.style.display = 'none';
+    alarmProgress.classList.remove('warning', 'danger');
+    if (alarmProgressBar) alarmProgressBar.style.width = '0%';
+    if (alarmRemainingValue) alarmRemainingValue.textContent = '00:00';
+}
+
+// 更新进度条宽度与剩余时间文字
+function updateAlarmProgress() {
+    if (!alarmProgress || !alarmProgressBar || !alarmRemainingValue) return;
+    if (!currentRecord.isActive || !alarmEnabled || alarmMinutes <= 0 || !alarmStartedAt) {
+        if (alarmProgress.style.display !== 'none') hideAlarmProgress();
+        return;
+    }
+    if (alarmProgress.style.display === 'none') alarmProgress.style.display = 'block';
+
+    const totalMs = alarmMinutes * 60 * 1000;
+    const elapsed = Date.now() - alarmStartedAt;
+    const remaining = Math.max(0, totalMs - elapsed);
+    const ratio = Math.min(1, Math.max(0, elapsed / totalMs));
+
+    alarmProgressBar.style.width = `${(ratio * 100).toFixed(2)}%`;
+    alarmRemainingValue.textContent = formatRemaining(remaining);
+
+    alarmProgress.classList.remove('warning', 'danger');
+    if (ratio >= 0.9) {
+        alarmProgress.classList.add('danger');
+    } else if (ratio >= 0.75) {
+        alarmProgress.classList.add('warning');
+    }
 }
 
 // 渲染历史记录
@@ -1323,20 +1384,27 @@ function startAlarmTimer() {
     if (!alarmEnabled || alarmMinutes <= 0) {
         return;
     }
-    
-    clearAlarmTimer();
-    
+
+    clearAlarmTimer({ keepProgress: true });
+
     const alarmTimeMs = alarmMinutes * 60 * 1000;
+    alarmStartedAt = Date.now();
     alarmTimer = setTimeout(() => {
         triggerAlarm();
     }, alarmTimeMs);
+
+    showAlarmProgress();
 }
 
 // 清除闹钟计时器
-function clearAlarmTimer() {
+function clearAlarmTimer(options = {}) {
     if (alarmTimer) {
         clearTimeout(alarmTimer);
         alarmTimer = null;
+    }
+    if (!options.keepProgress) {
+        alarmStartedAt = 0;
+        hideAlarmProgress();
     }
 }
 
@@ -1427,7 +1495,15 @@ function triggerAlarm() {
 
     // 系统桌面通知（需用户事先授权，浏览器保持打开且标签页/定时器可运行；最小化通常仍可显示）
     showAlarmNotification();
-    
+
+    // 进度条置满，显示危险状态
+    if (alarmProgress && alarmProgressBar && alarmRemainingValue) {
+        alarmProgress.classList.remove('warning');
+        alarmProgress.classList.add('danger');
+        alarmProgressBar.style.width = '100%';
+        alarmRemainingValue.textContent = '时间到';
+    }
+
     // 显示弹窗
     alarmModal.style.display = 'flex';
 }
