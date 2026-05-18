@@ -1690,3 +1690,213 @@ body {
     font-size: 11px;
     border: 1px solid var(--border-color);
 }
+
+
+/* ===== 桌面双栏布局（定稿版）=====
+ * 桌面端（≥768px）左侧放控制区，右侧放历史+统计，
+ * 无需滚动即可全览页面内容。移动端自动恢复单列。
+ */
+@media (min-width: 768px) {
+
+    body {
+        padding: 8px;
+    }
+
+    .app-container {
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .app-card {
+        max-width: 980px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "header     header"
+            "timer      history"
+            "work-name  history"
+            "tags       history"
+            "buttons    history"
+            "hint       history"
+            "alarm      history"
+            "voice      stats";
+        column-gap: 20px;
+        align-items: start;
+        padding: 14px 20px;
+    }
+
+    .header-section {
+        grid-area: header;
+        margin-bottom: 10px;
+    }
+
+    .timer-card {
+        grid-area: timer;
+        margin-bottom: 8px;
+        padding: 16px;
+    }
+
+    .timer-display {
+        font-size: 40px;
+        margin: 4px 0;
+    }
+
+    .work-name-section {
+        grid-area: work-name;
+        margin-bottom: 8px;
+    }
+
+    .tag-section {
+        grid-area: tags;
+        margin-bottom: 8px;
+    }
+
+    .action-buttons {
+        grid-area: buttons;
+        margin-bottom: 4px;
+    }
+
+    .keyboard-hint {
+        grid-area: hint;
+        margin-bottom: 8px;
+        text-align: left;
+    }
+
+    /* 闹钟区域 */
+    .reminder-section {
+        grid-area: alarm;
+        margin-bottom: 8px;
+        padding: 8px 12px;
+        border-radius: 12px;
+    }
+
+    .reminder-header {
+        margin-bottom: 6px;
+    }
+
+    .reminder-icon { font-size: 14px; }
+    .reminder-label { font-size: 13px; }
+
+    .reminder-options {
+        gap: 5px;
+    }
+
+    /* 5 个预设按钮强制一行等宽排列 */
+    .preset-buttons {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 4px;
+    }
+
+    .preset-btn {
+        flex: 1;
+        padding: 4px 0;
+        font-size: 11px;
+        white-space: nowrap;
+        text-align: center;
+        border-radius: 14px;
+    }
+
+    /* 自定义时长行 */
+    .custom-alarm {
+        gap: 5px;
+        margin-top: 2px;
+    }
+
+    .custom-alarm-input {
+        width: 60px;
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+
+    .custom-alarm-unit { font-size: 12px; }
+
+    .btn-set-alarm {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
+
+    .alarm-status {
+        padding: 4px 10px;
+        font-size: 11px;
+        margin-top: 3px;
+    }
+
+    /* 通知说明：折叠为 1 行，悬浮展开 */
+    .notify-hint {
+        font-size: 11px;
+        padding: 3px 6px;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        cursor: help;
+        margin-top: 2px;
+    }
+
+    .notify-hint:hover {
+        -webkit-line-clamp: unset;
+        overflow: visible;
+        position: relative;
+        z-index: 10;
+        background: var(--card-bg, white);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border-radius: 6px;
+    }
+
+    .notify-row {
+        margin-top: 3px;
+        gap: 6px;
+    }
+
+    .btn-notify {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+
+    .notify-status { font-size: 11px; }
+
+    /* 语音开关 */
+    .voice-section {
+        grid-area: voice;
+        margin-bottom: 0;
+    }
+
+    /* 右栏：历史记录 */
+    .history-section {
+        grid-area: history;
+        margin-bottom: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .history-list {
+        max-height: none;
+        flex: 1;
+        min-height: 200px;
+        max-height: calc(100vh - 200px);
+    }
+
+    /* 右栏：统计（改为垂直列表）*/
+    .statistics-section {
+        grid-area: stats;
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .statistics-section .stat-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 10px;
+    }
+
+    .statistics-section .stat-label {
+        margin-bottom: 0;
+        font-size: 12px;
+    }
+
+    .statistics-section .stat-value {
+        font-size: 15px;
+    }
+}
