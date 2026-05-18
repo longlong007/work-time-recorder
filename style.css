@@ -1693,93 +1693,86 @@ body {
 
 
 /* ===== 桌面双栏布局（定稿版）=====
- * 桌面端（≥768px）左侧放控制区，右侧放历史+统计，
- * 无需滚动即可全览页面内容。移动端自动恢复单列。
+ * 桌面端（≥768px）Flexbox 双列：左侧控制区按内容高度自适应，
+ * 右侧历史+统计固定在视口内，历史列表内部滚动，页面外层无滚动条。
+ * 移动端 layout-cols/left/right 退化为块级，恢复单列。
  */
 @media (min-width: 768px) {
 
     body {
         padding: 8px;
+        overflow: hidden; /* 禁用页面外层滚动 */
     }
 
     .app-container {
         align-items: center;
         padding: 8px 0;
+        height: calc(100vh - 16px);
     }
 
+    /* app-card 固定为视口高度，内部 flex 纵向分配 */
     .app-card {
         max-width: 980px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-areas:
-            "header     header"
-            "timer      history"
-            "work-name  history"
-            "tags       history"
-            "buttons    history"
-            "hint       history"
-            "alarm      history"
-            "voice      stats";
-        column-gap: 20px;
-        align-items: start;
-        padding: 14px 20px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 14px 20px 12px;
+        overflow: hidden;
     }
 
     .header-section {
-        grid-area: header;
+        flex-shrink: 0;
         margin-bottom: 10px;
     }
 
-    .timer-card {
-        grid-area: timer;
+    /* layout-cols：横向两栏，占满剩余高度 */
+    .layout-cols {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 20px;
+        overflow: hidden;
+    }
+
+    /* 左栏：按内容高度自然堆叠，超出时内部滚动 */
+    .layout-left {
+        flex: 1;
+        min-width: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 4px; /* 给滚动条留空间 */
+    }
+
+    .layout-left .timer-card {
         margin-bottom: 8px;
         padding: 16px;
     }
 
-    .timer-display {
+    .layout-left .timer-display {
         font-size: 40px;
         margin: 4px 0;
     }
 
-    .work-name-section {
-        grid-area: work-name;
-        margin-bottom: 8px;
-    }
+    .layout-left .work-name-section  { margin-bottom: 8px; }
+    .layout-left .tag-section        { margin-bottom: 8px; }
+    .layout-left .action-buttons     { margin-bottom: 4px; }
 
-    .tag-section {
-        grid-area: tags;
-        margin-bottom: 8px;
-    }
-
-    .action-buttons {
-        grid-area: buttons;
-        margin-bottom: 4px;
-    }
-
-    .keyboard-hint {
-        grid-area: hint;
+    .layout-left .keyboard-hint {
         margin-bottom: 8px;
         text-align: left;
     }
 
     /* 闹钟区域 */
-    .reminder-section {
-        grid-area: alarm;
+    .layout-left .reminder-section {
         margin-bottom: 8px;
         padding: 8px 12px;
         border-radius: 12px;
     }
 
-    .reminder-header {
-        margin-bottom: 6px;
-    }
-
-    .reminder-icon { font-size: 14px; }
-    .reminder-label { font-size: 13px; }
-
-    .reminder-options {
-        gap: 5px;
-    }
+    .reminder-header    { margin-bottom: 6px; }
+    .reminder-icon      { font-size: 14px; }
+    .reminder-label     { font-size: 13px; }
+    .reminder-options   { gap: 5px; }
 
     /* 5 个预设按钮强制一行等宽排列 */
     .preset-buttons {
@@ -1797,30 +1790,11 @@ body {
         border-radius: 14px;
     }
 
-    /* 自定义时长行 */
-    .custom-alarm {
-        gap: 5px;
-        margin-top: 2px;
-    }
-
-    .custom-alarm-input {
-        width: 60px;
-        padding: 5px 8px;
-        font-size: 12px;
-    }
-
-    .custom-alarm-unit { font-size: 12px; }
-
-    .btn-set-alarm {
-        padding: 5px 10px;
-        font-size: 12px;
-    }
-
-    .alarm-status {
-        padding: 4px 10px;
-        font-size: 11px;
-        margin-top: 3px;
-    }
+    .custom-alarm        { gap: 5px; margin-top: 2px; }
+    .custom-alarm-input  { width: 60px; padding: 5px 8px; font-size: 12px; }
+    .custom-alarm-unit   { font-size: 12px; }
+    .btn-set-alarm       { padding: 5px 10px; font-size: 12px; }
+    .alarm-status        { padding: 4px 10px; font-size: 11px; margin-top: 3px; }
 
     /* 通知说明：折叠为 1 行，悬浮展开 */
     .notify-hint {
@@ -1844,59 +1818,58 @@ body {
         border-radius: 6px;
     }
 
-    .notify-row {
-        margin-top: 3px;
-        gap: 6px;
-    }
-
-    .btn-notify {
-        padding: 4px 10px;
-        font-size: 11px;
-    }
-
+    .notify-row    { margin-top: 3px; gap: 6px; }
+    .btn-notify    { padding: 4px 10px; font-size: 11px; }
     .notify-status { font-size: 11px; }
 
-    /* 语音开关 */
-    .voice-section {
-        grid-area: voice;
-        margin-bottom: 0;
-    }
+    .layout-left .voice-section { margin-bottom: 0; }
 
-    /* 右栏：历史记录 */
-    .history-section {
-        grid-area: history;
-        margin-bottom: 0;
+    /* 右栏：固定高度，历史列表弹性填满，不撑高页面 */
+    .layout-right {
+        flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
-    .history-list {
-        max-height: none;
+    .layout-right .history-section {
         flex: 1;
-        min-height: 200px;
-        max-height: calc(100vh - 200px);
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        margin-bottom: 8px;
     }
 
-    /* 右栏：统计（改为垂直列表）*/
-    .statistics-section {
-        grid-area: stats;
+    .layout-right .history-list {
+        flex: 1;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        margin-bottom: 0;
+    }
+
+    /* 统计区：垂直列表，固定在右栏底部 */
+    .layout-right .statistics-section {
+        flex-shrink: 0;
         grid-template-columns: 1fr;
-        gap: 6px;
+        gap: 5px;
     }
 
-    .statistics-section .stat-item {
+    .layout-right .statistics-section .stat-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 6px 10px;
     }
 
-    .statistics-section .stat-label {
+    .layout-right .statistics-section .stat-label {
         margin-bottom: 0;
         font-size: 12px;
     }
 
-    .statistics-section .stat-value {
+    .layout-right .statistics-section .stat-value {
         font-size: 15px;
     }
 }
