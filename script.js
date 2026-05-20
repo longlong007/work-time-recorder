@@ -1,7 +1,7 @@
 // 数据存储键
 const STORAGE_KEY = 'workTimeRecords';
 const TAGS_STORAGE_KEY = 'workTags';
-const VOICE_SHORTCUT_STORAGE_KEY = 'voiceShortcutEnabled';
+const MORE_SETTINGS_OPEN_KEY = 'moreSettingsOpen';
 
 // 状态管理
 let currentRecord = {
@@ -59,10 +59,10 @@ const alarmToggle = document.getElementById('alarmToggle');
 
 // 主题切换 DOM 元素
 const themeToggle = document.getElementById('themeToggle');
+const shortcutsBtn = document.getElementById('shortcutsBtn');
+const shortcutsModal = document.getElementById('shortcutsModal');
+const closeShortcutsModalBtn = document.getElementById('closeShortcutsModalBtn');
 
-// 语音输入 DOM 元素
-const voiceBtn = document.getElementById('voiceBtn');
-const voiceToggle = document.getElementById('voiceToggle');
 const alarmOptions = document.getElementById('alarmOptions');
 const customAlarmMinutes = document.getElementById('customAlarmMinutes');
 const setAlarmBtn = document.getElementById('setAlarmBtn');
@@ -104,19 +104,32 @@ function init() {
     loadTags();
     renderQuickTags();
     initNotificationUI();
+    initMoreSettings();
     initTheme();
     registerServiceWorker();
-    loadVoiceShortcutPreference();
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
-    
-    // 如果开启了语音快捷键，默认聚焦到工作名称输入框
-    if (voiceToggle && voiceToggle.checked) {
-        workNameInput.focus();
-    }
 
     workNameInput.addEventListener('input', syncQuickTagSelection);
+}
+
+// 更多设置折叠（闹钟 / 通知）
+function initMoreSettings() {
+    const moreSettings = document.getElementById('moreSettings');
+    if (!moreSettings) {
+        return;
+    }
+
+    if (localStorage.getItem(MORE_SETTINGS_OPEN_KEY) === '1') {
+        moreSettings.open = true;
+    } else if (alarmToggle?.checked) {
+        moreSettings.open = true;
+    }
+
+    moreSettings.addEventListener('toggle', () => {
+        localStorage.setItem(MORE_SETTINGS_OPEN_KEY, moreSettings.open ? '1' : '0');
+    });
 }
 
 // ==================== PWA 注册 ====================
@@ -1673,146 +1686,39 @@ function initKeyboardShortcuts() {
     });
 }
 
+function openShortcutsModal() {
+    if (shortcutsModal) {
+        shortcutsModal.style.display = 'flex';
+    }
+}
+
+function closeShortcutsModal() {
+    if (shortcutsModal) {
+        shortcutsModal.style.display = 'none';
+    }
+}
+
 function showKeyboardShortcuts() {
-    const tips = [
-        '⌨️ 快捷键提示：',
-        '空格 - 开始/结束工作',
-        'Ctrl+E - 导出数据',
-        'Ctrl+V - 语音输入（需开启语音开关）',
-        'Ctrl+/ - 显示此提示'
-    ].join('\n');
-    alert(tips);
+    openShortcutsModal();
 }
 
-// ==================== 语音输入功能 ====================
-
-let recognition = null;
-let isListening = false;
-
-function initVoiceInput() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        if (voiceToggle) {
-            voiceToggle.disabled = true;
-            voiceToggle.parentElement.title = '当前浏览器不支持语音输入';
-        }
-        return;
+function initShortcutsUI() {
+    if (shortcutsBtn) {
+        shortcutsBtn.addEventListener('click', openShortcutsModal);
     }
-
-    if (voiceBtn) {
-        voiceBtn.addEventListener('click', toggleVoiceInput);
+    if (closeShortcutsModalBtn) {
+        closeShortcutsModalBtn.addEventListener('click', closeShortcutsModal);
     }
-
-    if (voiceToggle) {
-        voiceToggle.addEventListener('change', saveVoiceShortcutPreference);
-    }
-
-    // Ctrl+V 快捷键
-    document.addEventListener('keydown', (e) => {
-        const isVoiceShortcut = e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyV';
-        if (isVoiceShortcut && voiceToggle && voiceToggle.checked) {
-            e.preventDefault();
-            toggleVoiceInput();
-        }
-    });
-}
-
-function loadVoiceShortcutPreference() {
-    if (!voiceToggle) return;
-    voiceToggle.checked = localStorage.getItem(VOICE_SHORTCUT_STORAGE_KEY) === 'true';
-}
-
-function saveVoiceShortcutPreference() {
-    if (!voiceToggle) return;
-    localStorage.setItem(VOICE_SHORTCUT_STORAGE_KEY, String(voiceToggle.checked));
-}
-
-function toggleVoiceInput() {
-    if (isListening) {
-        stopVoiceInput();
-    } else {
-        startVoiceInput();
-    }
-}
-
-function startVoiceInput() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    try {
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'zh-CN';
-
-        recognition.onstart = () => {
-            isListening = true;
-            updateVoiceButtonState(true);
-        };
-
-        recognition.onresult = (event) => {
-            let finalTranscript = '';
-            let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const t = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += t;
-                } else {
-                    interimTranscript += t;
-                }
+    if (shortcutsModal) {
+        shortcutsModal.addEventListener('click', (e) => {
+            if (e.target === shortcutsModal) {
+                closeShortcutsModal();
             }
-            if (interimTranscript) {
-                workNameInput.value += interimTranscript;
-            }
-            if (finalTranscript) {
-                workNameInput.value += finalTranscript;
-            }
-        };
-
-        recognition.onerror = (event) => {
-            console.log('语音识别错误:', event.error);
-            if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
-                stopVoiceInput();
-            }
-        };
-
-        recognition.onend = () => {
-            isListening = false;
-            recognition = null;
-            updateVoiceButtonState(false);
-        };
-
-        recognition.start();
-    } catch (e) {
-        console.log('语音识别启动失败:', e);
-        isListening = false;
-        recognition = null;
-        updateVoiceButtonState(false);
+        });
     }
 }
 
-function stopVoiceInput() {
-    if (recognition) {
-        recognition.stop();
-        recognition = null;
-    }
-    isListening = false;
-    updateVoiceButtonState(false);
-}
-
-function updateVoiceButtonState(listening) {
-    if (!voiceBtn) return;
-    if (listening) {
-        voiceBtn.classList.add('listening');
-        voiceBtn.textContent = '🔴';
-    } else {
-        voiceBtn.classList.remove('listening');
-        voiceBtn.textContent = '🎤';
-    }
-}
-
-// 初始化语音输入
-initVoiceInput();
+initShortcutsUI();
 
 // 页面加载时初始化
 initKeyboardShortcuts();

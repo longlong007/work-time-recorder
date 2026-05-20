@@ -15,7 +15,10 @@
             <div class="header-section">
                 <span class="header-icon">⏰</span>
                 <h1 class="header-title">工作时间记录器</h1>
-                <button class="theme-toggle" id="themeToggle" title="切换深色模式">🌙</button>
+                <div class="header-actions">
+                    <button type="button" class="header-icon-btn" id="shortcutsBtn" title="快捷键说明" aria-label="快捷键说明">⌨️</button>
+                    <button type="button" class="theme-toggle" id="themeToggle" title="切换深色模式" aria-label="切换深色模式">🌙</button>
+                </div>
             </div>
 
             <!-- 双栏布局容器（桌面端生效） -->
@@ -62,34 +65,33 @@
                                 class="work-name-input"
                                 placeholder="请输入工作内容名称（可选）"
                                 maxlength="50">
-                            <button class="btn-voice" id="voiceBtn" title="语音输入">🎤</button>
                         </div>
                     </div>
 
                     <!-- 标签选择区 -->
                     <div class="tag-section">
-                        <div class="tag-header">
-                            <span class="tag-label">标签分类</span>
-                            <button class="btn-manage-tags" id="manageTagsBtn">管理标签</button>
-                        </div>
-                        <div class="quick-tags" id="quickTags">
-                            <!-- 标签将通过 JavaScript 动态生成 -->
+                        <div class="quick-tags-row">
+                            <div class="quick-tags" id="quickTags">
+                                <!-- 标签将通过 JavaScript 动态生成 -->
+                            </div>
+                            <button type="button" class="btn btn-neutral btn-sm manage-tags-btn" id="manageTagsBtn">管理标签</button>
                         </div>
                     </div>
 
                     <!-- 操作按钮 -->
                     <div class="action-buttons">
-                        <button class="btn btn-start" id="startBtn">
+                        <button type="button" class="btn btn-primary" id="startBtn">
                             <span>▶</span>
                             开始工作
                         </button>
-                        <button class="btn btn-stop" id="stopBtn" disabled>
+                        <button type="button" class="btn btn-danger" id="stopBtn" disabled>
                             <span>⏸</span>
                             结束工作
                         </button>
                     </div>
-                    <div class="keyboard-hint">按 <kbd>空格</kbd> 开始/结束 · <kbd>Ctrl+E</kbd> 导出 · <kbd>Ctrl+V</kbd> 语音（需开启开关）</div>
-
+                    <details class="more-settings" id="moreSettings">
+                        <summary class="more-settings-summary">更多设置</summary>
+                        <div class="more-settings-body">
                     <!-- 闹钟提醒设置区 -->
                     <div class="reminder-section" id="alarmSection">
                         <div class="reminder-header">
@@ -111,30 +113,17 @@
                             <div class="custom-alarm">
                                 <input type="number" id="customAlarmMinutes" class="custom-alarm-input" placeholder="自定义" min="1" max="480">
                                 <span class="custom-alarm-unit">分钟</span>
-                                <button class="btn-set-alarm" id="setAlarmBtn">设置</button>
+                                <button type="button" class="btn btn-primary btn-sm" id="setAlarmBtn">设置</button>
                             </div>
                             <div class="alarm-status" id="alarmStatus"></div>
-                            <div class="notify-hint" id="notifyHint">
-                                在浏览器允许通知后，窗口最小化时也可在桌面收到闹钟提醒。完全退出浏览器后无法推送（本页为纯静态，无服务器推送）。
-                            </div>
                             <div class="notify-row">
-                                <button type="button" class="btn-notify" id="notifyPermissionBtn" aria-describedby="notifyHint">开启系统通知</button>
+                                <button type="button" class="btn btn-neutral btn-sm" id="notifyPermissionBtn">开启系统通知</button>
                                 <span class="notify-status" id="notifyStatus" role="status"></span>
                             </div>
                         </div>
                     </div>
-
-                    <!-- 语音快捷键设置区 -->
-                    <div class="voice-section">
-                        <div class="voice-row">
-                            <label class="voice-toggle">
-                                <input type="checkbox" id="voiceToggle">
-                                <span class="toggle-slider"></span>
-                                <span class="voice-label">🎤 快捷键语音</span>
-                            </label>
-                            <span class="voice-hint">按 <kbd>Ctrl+V</kbd> 开始/停止语音输入</span>
                         </div>
-                    </div>
+                    </details>
 
                 </div><!-- /layout-left -->
 
@@ -149,16 +138,16 @@
                                 <span>历史记录</span>
                             </div>
                             <div class="history-actions">
-                                <button class="btn-action btn-export" id="exportBtn">📤 导出</button>
-                                <button class="btn-action btn-import" id="importBtn">📥 导入</button>
-                                <button class="btn-action btn-clear" id="clearBtn">清空</button>
+                                <button type="button" class="btn btn-primary btn-sm" id="exportBtn">📤 导出</button>
+                                <button type="button" class="btn btn-success btn-sm" id="importBtn">📥 导入</button>
+                                <button type="button" class="btn btn-danger btn-sm" id="clearBtn">清空</button>
                             </div>
                         </div>
 
                         <div class="filter-bar">
                             <input type="date" id="filterDate" class="date-filter">
-                            <button class="btn-filter" id="filterBtn">筛选</button>
-                            <button class="btn-reset" id="resetFilterBtn">重置</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="filterBtn">筛选</button>
+                            <button type="button" class="btn btn-neutral btn-sm" id="resetFilterBtn">重置</button>
                         </div>
 
                         <div class="history-list" id="historyList">
@@ -187,6 +176,32 @@
             </div><!-- /layout-cols -->
         </div>
 
+        <!-- 快捷键说明弹窗 -->
+        <div class="modal" id="shortcutsModal" style="display: none;">
+            <div class="modal-content shortcuts-modal-content">
+                <div class="modal-header">
+                    <h3>⌨️ 快捷键</h3>
+                    <button type="button" class="btn-close" id="closeShortcutsModalBtn" aria-label="关闭">✕</button>
+                </div>
+                <div class="modal-body">
+                    <ul class="shortcuts-list">
+                        <li class="shortcuts-item">
+                            <kbd>空格</kbd>
+                            <span>开始 / 结束工作</span>
+                        </li>
+                        <li class="shortcuts-item">
+                            <kbd>Ctrl</kbd><span class="shortcuts-plus">+</span><kbd>E</kbd>
+                            <span>导出数据</span>
+                        </li>
+                        <li class="shortcuts-item">
+                            <kbd>Ctrl</kbd><span class="shortcuts-plus">+</span><kbd>/</kbd>
+                            <span>打开本说明</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <!-- 标签管理弹窗 -->
         <div class="modal" id="tagModal" style="display: none;">
             <div class="modal-content">
@@ -202,7 +217,7 @@
                             class="tag-input"
                             placeholder="输入新标签名称"
                             maxlength="20">
-                        <button class="btn-add-tag" id="addTagBtn">➕ 添加</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="addTagBtn">➕ 添加</button>
                     </div>
                     <div class="tag-list" id="tagList">
                         <!-- 标签列表将通过 JavaScript 动态生成 -->
@@ -244,8 +259,8 @@
                                 class="form-input">
                         </div>
                         <div class="form-actions">
-                            <button class="btn btn-cancel" id="cancelEditBtn">取消</button>
-                            <button class="btn btn-save" id="saveEditBtn">💾 保存</button>
+                            <button type="button" class="btn btn-neutral" id="cancelEditBtn">取消</button>
+                            <button type="button" class="btn btn-primary" id="saveEditBtn">💾 保存</button>
                         </div>
                     </div>
                 </div>
@@ -259,8 +274,8 @@
                 <h3 class="alarm-modal-title">时间到！</h3>
                 <p class="alarm-modal-message">您设置的闹钟时间已经到了</p>
                 <div class="alarm-modal-actions">
-                    <button class="btn btn-continue" id="continueAlarmBtn">继续计时</button>
-                    <button class="btn btn-end" id="endAlarmBtn">结束工作</button>
+                    <button type="button" class="btn btn-primary btn-modal" id="continueAlarmBtn">继续计时</button>
+                    <button type="button" class="btn btn-danger btn-modal" id="endAlarmBtn">结束工作</button>
                 </div>
             </div>
         </div>
