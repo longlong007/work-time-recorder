@@ -18,155 +18,173 @@
                 <button class="theme-toggle" id="themeToggle" title="切换深色模式">🌙</button>
             </div>
 
-            <!-- 核心计时卡片 -->
-            <div class="timer-card" id="statusCard">
-                <div class="timer-status">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span class="status-text" id="statusText">未开始</span>
-                </div>
-                <div class="timer-display" id="currentTime">--:--:--</div>
-                <div class="current-work-name" id="currentWorkName" style="display: none;">
-                    <span>📝</span>
-                    <span id="currentWorkNameValue">工作内容</span>
-                </div>
-                <div class="elapsed-time" id="elapsedTime" style="display: none;">
-                    已工作: <span id="elapsedTimeValue">00:00:00</span>
-                </div>
-                <div class="alarm-progress" id="alarmProgress" style="display: none;">
-                    <div class="alarm-progress-info">
-                        <span class="alarm-progress-label">距离闹钟还剩</span>
-                        <span class="alarm-progress-remaining" id="alarmRemainingValue">00:00</span>
+            <!-- 双栏布局容器（桌面端生效） -->
+            <div class="layout-cols">
+
+                <!-- 左栏：控制区 -->
+                <div class="layout-left" id="layoutLeft">
+
+                    <!-- 核心计时卡片 -->
+                    <div class="timer-card" id="statusCard">
+                        <div class="timer-card-top">
+                            <div class="timer-status">
+                                <span class="status-dot" id="statusDot"></span>
+                                <span class="status-text" id="statusText">未开始</span>
+                            </div>
+                            <div class="current-work-name" id="currentWorkName" style="display: none;">
+                                <span>📝</span>
+                                <span id="currentWorkNameValue">工作内容</span>
+                            </div>
+                        </div>
+                        <div class="timer-display" id="elapsedDisplay">00:00:00</div>
+                        <div class="timer-wall-clock">
+                            <span class="timer-sub-label">当前时间</span>
+                            <span class="timer-wall-clock-value" id="wallClockTime">--:--:--</span>
+                        </div>
+                        <div class="alarm-progress" id="alarmProgress" style="display: none;">
+                            <div class="alarm-progress-info">
+                                <span class="alarm-progress-label">距离闹钟还剩</span>
+                                <span class="alarm-progress-remaining" id="alarmRemainingValue">00:00</span>
+                            </div>
+                            <div class="alarm-progress-track">
+                                <div class="alarm-progress-bar" id="alarmProgressBar" style="width: 0%;"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="alarm-progress-track">
-                        <div class="alarm-progress-bar" id="alarmProgressBar" style="width: 0%;"></div>
+
+                    <!-- 工作内容输入区 -->
+                    <div class="work-name-section" id="workNameSection">
+                        <div class="input-row">
+                            <span class="input-label">工作名称</span>
+                            <input
+                                type="text"
+                                id="workNameInput"
+                                class="work-name-input"
+                                placeholder="请输入工作内容名称（可选）"
+                                maxlength="50">
+                            <button class="btn-voice" id="voiceBtn" title="语音输入">🎤</button>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- 工作内容输入区 -->
-            <div class="work-name-section" id="workNameSection">
-                <div class="input-row">
-                    <span class="input-label">工作名称</span>
-                    <input
-                        type="text"
-                        id="workNameInput"
-                        class="work-name-input"
-                        placeholder="请输入工作内容名称（可选）"
-                        maxlength="50">
-                    <button class="btn-voice" id="voiceBtn" title="语音输入">🎤</button>
-                </div>
-            </div>
-
-            <!-- 标签选择区 -->
-            <div class="tag-section">
-                <div class="tag-header">
-                    <span class="tag-label">标签分类</span>
-                    <button class="btn-manage-tags" id="manageTagsBtn">管理标签</button>
-                </div>
-                <div class="quick-tags" id="quickTags">
-                    <!-- 标签将通过 JavaScript 动态生成 -->
-                </div>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="action-buttons">
-                <button class="btn btn-start" id="startBtn">
-                    <span>▶</span>
-                    开始工作
-                </button>
-                <button class="btn btn-stop" id="stopBtn" disabled>
-                    <span>⏸</span>
-                    结束工作
-                </button>
-            </div>
-            <div class="keyboard-hint">按 <kbd>空格</kbd> 开始/结束 · <kbd>Ctrl+E</kbd> 导出 · <kbd>Ctrl+V</kbd> 语音（需开启开关）</div>
-
-            <!-- 闹钟提醒设置区 -->
-            <div class="reminder-section" id="alarmSection">
-                <div class="reminder-header">
-                    <span class="reminder-icon">⏰</span>
-                    <span class="reminder-label">闹钟提醒</span>
-                    <label class="alarm-toggle">
-                        <input type="checkbox" id="alarmToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <div class="reminder-options" id="alarmOptions">
-                    <div class="preset-buttons">
-                        <button class="preset-btn" data-minutes="5">5分钟</button>
-                        <button class="preset-btn" data-minutes="10">10分钟</button>
-                        <button class="preset-btn" data-minutes="15">15分钟</button>
-                        <button class="preset-btn" data-minutes="30">30分钟</button>
-                        <button class="preset-btn" data-minutes="45">45分钟</button>
+                    <!-- 标签选择区 -->
+                    <div class="tag-section">
+                        <div class="tag-header">
+                            <span class="tag-label">标签分类</span>
+                            <button class="btn-manage-tags" id="manageTagsBtn">管理标签</button>
+                        </div>
+                        <div class="quick-tags" id="quickTags">
+                            <!-- 标签将通过 JavaScript 动态生成 -->
+                        </div>
                     </div>
-                    <div class="custom-alarm">
-                        <input type="number" id="customAlarmMinutes" class="custom-alarm-input" placeholder="自定义" min="1" max="480">
-                        <span class="custom-alarm-unit">分钟</span>
-                        <button class="btn-set-alarm" id="setAlarmBtn">设置</button>
-                    </div>
-                    <div class="alarm-status" id="alarmStatus"></div>
-                    <div class="notify-hint" id="notifyHint">
-                        在浏览器允许通知后，窗口最小化时也可在桌面收到闹钟提醒。完全退出浏览器后无法推送（本页为纯静态，无服务器推送）。
-                    </div>
-                    <div class="notify-row">
-                        <button type="button" class="btn-notify" id="notifyPermissionBtn" aria-describedby="notifyHint">开启系统通知</button>
-                        <span class="notify-status" id="notifyStatus" role="status"></span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 语音快捷键设置区 -->
-            <div class="voice-section">
-                <div class="voice-row">
-                    <label class="voice-toggle">
-                        <input type="checkbox" id="voiceToggle">
-                        <span class="toggle-slider"></span>
-                        <span class="voice-label">🎤 快捷键语音</span>
-                    </label>
-                    <span class="voice-hint">按 <kbd>Ctrl+V</kbd> 开始/停止语音输入</span>
-                </div>
-            </div>
-
-            <!-- 历史记录列表 -->
-            <div class="history-section">
-                <div class="history-header">
-                    <div class="history-title">
-                        <span>📋</span>
-                        <span>历史记录</span>
+                    <!-- 操作按钮 -->
+                    <div class="action-buttons">
+                        <button class="btn btn-start" id="startBtn">
+                            <span>▶</span>
+                            开始工作
+                        </button>
+                        <button class="btn btn-stop" id="stopBtn" disabled>
+                            <span>⏸</span>
+                            结束工作
+                        </button>
                     </div>
-                    <div class="history-actions">
-                        <button class="btn-action btn-export" id="exportBtn">📤 导出</button>
-                        <button class="btn-action btn-import" id="importBtn">📥 导入</button>
-                        <button class="btn-action btn-clear" id="clearBtn">清空</button>
+                    <div class="keyboard-hint">按 <kbd>空格</kbd> 开始/结束 · <kbd>Ctrl+E</kbd> 导出 · <kbd>Ctrl+V</kbd> 语音（需开启开关）</div>
+
+                    <!-- 闹钟提醒设置区 -->
+                    <div class="reminder-section" id="alarmSection">
+                        <div class="reminder-header">
+                            <span class="reminder-icon">⏰</span>
+                            <span class="reminder-label">闹钟提醒</span>
+                            <label class="alarm-toggle">
+                                <input type="checkbox" id="alarmToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="reminder-options" id="alarmOptions">
+                            <div class="preset-buttons">
+                                <button class="preset-btn" data-minutes="5">5分钟</button>
+                                <button class="preset-btn" data-minutes="10">10分钟</button>
+                                <button class="preset-btn" data-minutes="15">15分钟</button>
+                                <button class="preset-btn" data-minutes="30">30分钟</button>
+                                <button class="preset-btn" data-minutes="45">45分钟</button>
+                            </div>
+                            <div class="custom-alarm">
+                                <input type="number" id="customAlarmMinutes" class="custom-alarm-input" placeholder="自定义" min="1" max="480">
+                                <span class="custom-alarm-unit">分钟</span>
+                                <button class="btn-set-alarm" id="setAlarmBtn">设置</button>
+                            </div>
+                            <div class="alarm-status" id="alarmStatus"></div>
+                            <div class="notify-hint" id="notifyHint">
+                                在浏览器允许通知后，窗口最小化时也可在桌面收到闹钟提醒。完全退出浏览器后无法推送（本页为纯静态，无服务器推送）。
+                            </div>
+                            <div class="notify-row">
+                                <button type="button" class="btn-notify" id="notifyPermissionBtn" aria-describedby="notifyHint">开启系统通知</button>
+                                <span class="notify-status" id="notifyStatus" role="status"></span>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="filter-bar">
-                    <input type="date" id="filterDate" class="date-filter">
-                    <button class="btn-filter" id="filterBtn">筛选</button>
-                    <button class="btn-reset" id="resetFilterBtn">重置</button>
-                </div>
+                    <!-- 语音快捷键设置区 -->
+                    <div class="voice-section">
+                        <div class="voice-row">
+                            <label class="voice-toggle">
+                                <input type="checkbox" id="voiceToggle">
+                                <span class="toggle-slider"></span>
+                                <span class="voice-label">🎤 快捷键语音</span>
+                            </label>
+                            <span class="voice-hint">按 <kbd>Ctrl+V</kbd> 开始/停止语音输入</span>
+                        </div>
+                    </div>
 
-                <div class="history-list" id="historyList">
-                    <div class="empty-state">暂无记录</div>
-                </div>
-            </div>
+                </div><!-- /layout-left -->
 
-            <!-- 统计区域 -->
-            <div class="statistics-section" id="statistics">
-                <div class="stat-item">
-                    <span class="stat-label">今日总计</span>
-                    <span class="stat-value" id="todayTotal">00:00:00</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">本周总计</span>
-                    <span class="stat-value" id="weekTotal">00:00:00</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">本月总计</span>
-                    <span class="stat-value" id="monthTotal">00:00:00</span>
-                </div>
-            </div>
+                <!-- 右栏：历史记录 + 统计 -->
+                <div class="layout-right">
+
+                    <!-- 历史记录列表 -->
+                    <div class="history-section">
+                        <div class="history-header">
+                            <div class="history-title">
+                                <span>📋</span>
+                                <span>历史记录</span>
+                            </div>
+                            <div class="history-actions">
+                                <button class="btn-action btn-export" id="exportBtn">📤 导出</button>
+                                <button class="btn-action btn-import" id="importBtn">📥 导入</button>
+                                <button class="btn-action btn-clear" id="clearBtn">清空</button>
+                            </div>
+                        </div>
+
+                        <div class="filter-bar">
+                            <input type="date" id="filterDate" class="date-filter">
+                            <button class="btn-filter" id="filterBtn">筛选</button>
+                            <button class="btn-reset" id="resetFilterBtn">重置</button>
+                        </div>
+
+                        <div class="history-list" id="historyList">
+                            <div class="empty-state">暂无记录</div>
+                        </div>
+                    </div>
+
+                    <!-- 统计区域 -->
+                    <div class="statistics-section" id="statistics">
+                        <div class="stat-item">
+                            <span class="stat-label">今日总计</span>
+                            <span class="stat-value" id="todayTotal">00:00:00</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">本周总计</span>
+                            <span class="stat-value" id="weekTotal">00:00:00</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">本月总计</span>
+                            <span class="stat-value" id="monthTotal">00:00:00</span>
+                        </div>
+                    </div>
+
+                </div><!-- /layout-right -->
+
+            </div><!-- /layout-cols -->
         </div>
 
         <!-- 标签管理弹窗 -->

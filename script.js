@@ -14,9 +14,9 @@ let currentRecord = {
 // DOM 元素
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
-const currentTime = document.getElementById('currentTime');
-const elapsedTime = document.getElementById('elapsedTime');
-const elapsedTimeValue = document.getElementById('elapsedTimeValue');
+const elapsedDisplay = document.getElementById('elapsedDisplay');
+const wallClockTime = document.getElementById('wallClockTime');
+const layoutLeft = document.getElementById('layoutLeft');
 const currentWorkName = document.getElementById('currentWorkName');
 const currentWorkNameValue = document.getElementById('currentWorkNameValue');
 const workNameInput = document.getElementById('workNameInput');
@@ -81,7 +81,7 @@ const alarmRemainingValue = document.getElementById('alarmRemainingValue');
 // 当前正在编辑的记录
 let currentEditingRecord = null;
 
-let updateInterval = null;
+let clockInterval = null;
 let filterDateValue = null;
 let alarmTimer = null;
 let alarmEnabled = false;
@@ -115,6 +115,8 @@ function init() {
     if (voiceToggle && voiceToggle.checked) {
         workNameInput.focus();
     }
+
+    workNameInput.addEventListener('input', syncQuickTagSelection);
 }
 
 // ==================== PWA 注册 ====================
@@ -140,7 +142,7 @@ function loadCurrentRecord() {
                 endWork();
                 return;
             }
-            // 如果正在工作中，禁用输入框
+            workNameInput.value = record.workName || '';
             workNameInput.disabled = true;
         }
     }
@@ -275,64 +277,90 @@ function formatDate(dateString) {
     }
 }
 
+// 从工作名称中解析已使用的标签
+function getTagsInWorkName(workName) {
+    if (!workName) {
+        return [];
+    }
+    const knownTags = getTags();
+    const parts = workName.split(' - ').map((p) => p.trim()).filter(Boolean);
+    return knownTags.filter((tag) => parts.includes(tag));
+}
+
+// 同步快速标签选中态
+function syncQuickTagSelection() {
+    const activeTags = new Set(getTagsInWorkName(workNameInput.value.trim()));
+    document.querySelectorAll('.quick-tag').forEach((tagBtn) => {
+        tagBtn.classList.toggle('selected', activeTags.has(tagBtn.dataset.tag));
+    });
+}
+
 // 更新显示
 function updateDisplay() {
     if (currentRecord.isActive && currentRecord.startTime) {
         statusDot.className = 'status-dot active';
-        statusText.textContent = '进行中';
+        statusText.textContent = '已开始';
         startBtn.disabled = true;
         stopBtn.disabled = false;
-        elapsedTime.style.display = 'block';
         currentWorkName.style.display = 'flex';
         currentWorkNameValue.textContent = currentRecord.workName;
+        layoutLeft?.classList.add('is-recording');
     } else {
         statusDot.className = 'status-dot stopped';
         statusText.textContent = '未开始';
         startBtn.disabled = false;
         stopBtn.disabled = true;
-        elapsedTime.style.display = 'none';
         currentWorkName.style.display = 'none';
+        layoutLeft?.classList.remove('is-recording');
     }
+    syncQuickTagSelection();
+    updateClock();
 }
 
-// 开始时钟
+// 开始时钟（已工作时长 + 当前时间 + 闹钟进度）
 function startClock() {
     updateClock();
-    setInterval(updateClock, 1000);
+    if (clockInterval) {
+        return;
+    }
+    clockInterval = setInterval(() => {
+        updateClock();
+        if (currentRecord.isActive && currentRecord.startTime) {
+            updateAlarmProgress();
+        }
+    }, 1000);
 }
 
-// 更新时钟
+// 更新计时区
 function updateClock() {
     const now = new Date();
-    currentTime.textContent = now.toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
+    if (wallClockTime) {
+        wallClockTime.textContent = now.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    }
+    if (!elapsedDisplay) {
+        return;
+    }
+    if (currentRecord.isActive && currentRecord.startTime) {
+        const elapsed = calculateDuration(currentRecord.startTime, now.toISOString());
+        elapsedDisplay.textContent = formatDuration(elapsed);
+    } else {
+        elapsedDisplay.textContent = '00:00:00';
+    }
 }
 
 // 开始计时器
 function startElapsedTimer() {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-    }
-    
-    updateInterval = setInterval(() => {
-        if (currentRecord.isActive && currentRecord.startTime) {
-            const elapsed = calculateDuration(currentRecord.startTime, new Date().toISOString());
-            elapsedTimeValue.textContent = formatDuration(elapsed);
-        }
-        updateAlarmProgress();
-    }, 1000);
+    updateClock();
 }
 
 // 停止计时器
 function stopElapsedTimer() {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-    }
-    elapsedTimeValue.textContent = '00:00:00';
+    updateClock();
 }
 
 // 格式化剩余时间（mm:ss，≥1小时显示 hh:mm:ss）
@@ -412,6 +440,10 @@ function renderHistory() {
         const endTime = formatTime(record.endTime);
         const duration = formatDuration(record.duration);
         const workName = record.workName || '';
+        const recordTags = getTagsInWorkName(workName);
+        const tagChipsHtml = recordTags.length
+            ? `<div class="history-tags">${recordTags.map((tag) => `<span class="history-tag-chip">${escapeHtml(tag)}</span>`).join('')}</div>`
+            : '';
         
         return `
             <div class="history-item">
@@ -425,6 +457,7 @@ function renderHistory() {
                         <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
                     </div>
                 </div>
+                ${tagChipsHtml}
                 ${workName ? `<div class="history-work-name">📝 ${escapeHtml(workName)}</div>` : ''}
                 <div class="history-time">
                     <span>🕐 开始: ${startTime}</span>
@@ -888,8 +921,10 @@ function renderQuickTags() {
             }
             
             workNameInput.focus();
+            syncQuickTagSelection();
         });
     });
+    syncQuickTagSelection();
 }
 
 // 渲染标签管理列表
