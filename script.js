@@ -527,6 +527,8 @@ function updateStatistics() {
     let weekTotalMs = 0;
     let monthTotalMs = 0;
     
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     records.forEach(record => {
         const recordDate = new Date(record.startTime);
         const duration = record.duration;
@@ -539,8 +541,6 @@ function updateStatistics() {
             weekTotalMs += duration;
         }
 
-        // 计算本月总计
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         if (recordDate >= monthStart) {
             monthTotalMs += duration;
         }
@@ -643,16 +643,22 @@ function importFromCSV(event) {
         return;
     }
 
+    // 文件大小限制 2MB
+    const FILE_MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > FILE_MAX_SIZE) {
+        alert('CSV 文件过大，请控制在 2MB 以内');
+        return;
+    }
+
+    const MAX_IMPORT_RECS = 5000;
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const content = e.target.result;
-            console.log('CSV文件内容:', content);
-            
+
             // 移除BOM标记（如果存在）
             const cleanContent = content.replace(/^\ufeff/, '');
             const lines = cleanContent.split(/\r?\n/); // 支持不同的换行符
-            console.log('分割后的行数:', lines.length);
             
             // 跳过表头
             if (lines.length < 2) {
@@ -692,79 +698,58 @@ function importFromCSV(event) {
 
             // 从第二行开始解析数据
             for (let i = 1; i < lines.length; i++) {
+                if (newRecords.length >= MAX_IMPORT_RECS) {
+                    errorDetails.push(`已达到最大导入条数 ${MAX_IMPORT_RECS}，后续记录被跳过`);
+                    break;
+                }
                 const line = lines[i].trim();
-                console.log(`处理第${i}行:`, line);
                 if (!line) continue;
-
                 const columns = parseCSVLine(line);
-                console.log(`第${i}行解析结果:`, columns);
-                
-                // 至少需要4列（日期、开始时间、结束时间、时长）
                 if (columns.length < 4) {
                     errorCount++;
-                    errorDetails.push(`第${i}行: 列数不足（需要至少4列，实际${columns.length}列）`);
+                    errorDetails.push(`第${i}行: 列数不足`);
                     continue;
                 }
-                
+
                 const [dateStr, startTimeStr, endTimeStr, durationHoursStr, ...workNameParts] = columns;
-                const workName = workNameParts.join(',').trim(); // 处理工作内容中可能包含逗号的情况
-                
-                // 验证并转换时间
+                const workName = workNameParts.join(',').trim();
                 const startTime = new Date(startTimeStr);
                 const endTime = new Date(endTimeStr);
                 const durationHours = parseFloat(durationHoursStr);
 
-                // 验证时间有效性
                 if (isNaN(startTime.getTime())) {
                     errorCount++;
-                    errorDetails.push(`第${i}行: 开始时间格式无效 (${startTimeStr})`);
-                    console.log(`第${i}行错误: 开始时间无效`, { startTimeStr });
+                    errorDetails.push(`第${i}行: 开始时间格式无效`);
                     continue;
                 }
-                
+
                 if (isNaN(endTime.getTime())) {
                     errorCount++;
-                    errorDetails.push(`第${i}行: 结束时间格式无效 (${endTimeStr})`);
-                    console.log(`第${i}行错误: 结束时间无效`, { endTimeStr });
+                    errorDetails.push(`第${i}行: 结束时间格式无效`);
                     continue;
                 }
-                
+
                 if (isNaN(durationHours) || durationHours <= 0) {
                     errorCount++;
-                    errorDetails.push(`第${i}行: 工作时长无效 (${durationHoursStr})`);
-                    console.log(`第${i}行错误: 工作时长无效`, { durationHoursStr });
+                    errorDetails.push(`第${i}行: 工作时长无效`);
                     continue;
                 }
-                
-                // 验证时间逻辑
+
                 if (endTime <= startTime) {
                     errorCount++;
                     errorDetails.push(`第${i}行: 结束时间必须晚于开始时间`);
-                    console.log(`第${i}行错误: 时间逻辑错误`, { startTime, endTime });
                     continue;
                 }
-                
-                console.log('解析成功的数据:', { 
-                    dateStr, 
-                    startTimeStr, 
-                    endTimeStr, 
-                    durationHoursStr,
-                    workName,
-                    startTime: startTime.toISOString(), 
-                    endTime: endTime.toISOString(), 
-                    durationHours 
-                });
 
                 newRecords.push({
                     startTime: startTime.toISOString(),
                     endTime: endTime.toISOString(),
-                    duration: durationHours * 60 * 60 * 1000, // 转换为毫秒
+                    duration: durationHours * 60 * 60 * 1000,
                     workName: workName || '未命名工作'
                 });
             }
 
             console.log('成功解析的记录数:', newRecords.length);
-            console.log('错误数:', errorCount);
             
             if (newRecords.length === 0) {
                 let errorMsg = '未能导入任何有效记录，请检查CSV文件格式\n\n';
@@ -1670,12 +1655,6 @@ setAlarmBtn.addEventListener('click', setCustomAlarm);
 continueAlarmBtn.addEventListener('click', continueAlarm);
 endAlarmBtn.addEventListener('click', endFromAlarm);
 
-// 预设按钮回车支持
-customAlarmMinutes.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        setCustomAlarm();
-    }
-});
 
 // ==================== 快捷键支持 ====================
 

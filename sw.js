@@ -33,28 +33,19 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 请求拦截 - 缓存优先
+// 请求拦截 - Stale-While-Revalidate（优先返回缓存，同时后台更新）
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(event.request).then((cached) => {
+        const fetched = fetch(event.request).then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            cache.put(event.request, response.clone());
+          }
           return response;
-        }
-        return fetch(event.request)
-          .then((response) => {
-            // 不缓存非正常响应
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            // 克隆响应以缓存
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-            return response;
-          });
-      })
+        }).catch(() => cached);
+        return cached || fetched;
+      });
+    })
   );
 });
