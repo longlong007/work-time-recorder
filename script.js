@@ -145,7 +145,13 @@ function registerServiceWorker() {
 function loadCurrentRecord() {
     const saved = localStorage.getItem('currentRecord');
     if (saved) {
-        const record = JSON.parse(saved);
+        let record;
+        try {
+            record = JSON.parse(saved);
+        } catch (e) {
+            localStorage.removeItem('currentRecord');
+            return;
+        }
         if (record.isActive && record.startTime) {
             currentRecord = record;
             // 检查是否跨天，如果跨天则自动结束
@@ -242,7 +248,14 @@ function saveHistoryRecord(record) {
 // 获取历史记录
 function getHistoryRecords() {
     const records = localStorage.getItem(STORAGE_KEY);
-    return records ? JSON.parse(records) : [];
+    if (!records) return [];
+    try {
+        return JSON.parse(records);
+    } catch (e) {
+        console.warn('历史记录数据损坏，已重置');
+        localStorage.removeItem(STORAGE_KEY);
+        return [];
+    }
 }
 
 // 计算时长（毫秒）
@@ -884,12 +897,23 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function escapeAttr(text) {
+    return escapeHtml(text).replace('"', '&quot;');
+}
+
 // ==================== 标签管理功能 ====================
 
 // 获取标签列表
 function getTags() {
     const tags = localStorage.getItem(TAGS_STORAGE_KEY);
-    return tags ? JSON.parse(tags) : ['开发', '会议', '学习', '调试', '文档'];
+    if (!tags) return ['开发', '会议', '学习', '调试', '文档'];
+    try {
+        return JSON.parse(tags);
+    } catch (e) {
+        console.warn('标签数据损坏，已重置');
+        localStorage.removeItem(TAGS_STORAGE_KEY);
+        return ['开发', '会议', '学习', '调试', '文档'];
+    }
 }
 
 // 保存标签列表
@@ -916,7 +940,7 @@ function renderQuickTags() {
     }
     
     quickTags.innerHTML = tags.map(tag => 
-        `<button class="quick-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`
+        `<button class="quick-tag" data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`
     ).join('');
     
     // 为每个标签添加点击事件
@@ -950,10 +974,10 @@ function renderTagList() {
     }
     
     tagList.innerHTML = tags.map((tag, index) => `
-        <div class="tag-item" draggable="true" data-index="${index}" data-tag="${escapeHtml(tag)}">
+        <div class="tag-item" draggable="true" data-index="${index}" data-tag="${escapeAttr(tag)}">
             <span class="tag-drag-handle">☰</span>
             <span class="tag-item-name">${escapeHtml(tag)}</span>
-            <button class="btn-delete-tag" data-tag="${escapeHtml(tag)}">🗑️ 删除</button>
+            <button class="btn-delete-tag" data-tag="${escapeAttr(tag)}">🗑️ 删除</button>
         </div>
     `).join('');
     
