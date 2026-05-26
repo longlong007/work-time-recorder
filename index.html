@@ -115,6 +115,16 @@
                                 <span class="custom-alarm-unit">分钟</span>
                                 <button type="button" class="btn btn-primary btn-sm" id="setAlarmBtn">设置</button>
                             </div>
+                            <div class="custom-alarm-presets">
+                                <div class="custom-alarm-presets-header">
+                                    <span>自定义时长</span>
+                                    <div class="custom-alarm-presets-add">
+                                        <input type="number" id="newAlarmPresetInput" class="custom-alarm-input" placeholder="分钟" min="1" max="480">
+                                        <button type="button" class="btn btn-neutral btn-sm" id="addAlarmPresetBtn">添加</button>
+                                    </div>
+                                </div>
+                                <div class="custom-alarm-presets-list" id="customAlarmPresets"></div>
+                            </div>
                             <div class="alarm-status" id="alarmStatus"></div>
                             <div class="notify-row">
                                 <button type="button" class="btn btn-neutral btn-sm" id="notifyPermissionBtn">开启系统通知</button>

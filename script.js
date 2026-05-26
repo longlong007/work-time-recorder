@@ -1,6 +1,8 @@
 // 数据存储键
 const STORAGE_KEY = 'workTimeRecords';
 const TAGS_STORAGE_KEY = 'workTags';
+const ALARM_PRESETS_KEY = 'alarmPresets';
+const DEFAULT_ALARM_PRESETS = [5, 10, 15, 30, 45];
 const MORE_SETTINGS_OPEN_KEY = 'moreSettingsOpen';
 
 // 状态管理
@@ -1634,20 +1636,52 @@ function endFromAlarm() {
 
 // 初始化预设按钮事件
 function initAlarmPresetButtons() {
-    document.querySelectorAll('.preset-btn').forEach(btn => {
+    // 动态渲染预设按钮（基于本地存储的自定义列表）
+    const presetRow = document.querySelector('.preset-buttons');
+    if (!presetRow) return;
+    const presets = getAlarmPresets();
+    presetRow.innerHTML = presets.map(p =>
+        `<button class="preset-btn" data-minutes="${p}">${p}分钟</button>`
+    ).join('');
+    presetRow.querySelectorAll('.preset-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const minutes = parseInt(btn.dataset.minutes);
-
-            // 清除其他按钮的选中状态
             document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
-
             setAlarmMinutes(minutes);
         });
     });
 }
 
+function initCustomAlarmPresets() {
+    renderAlarmPresets();
+    const addBtn = document.getElementById('addAlarmPresetBtn');
+    const input = document.getElementById('newAlarmPresetInput');
+    if (addBtn && input) {
+        addBtn.addEventListener('click', () => {
+            const val = parseInt(input.value);
+            if (isNaN(val) || val < 1) {
+                alert('请输入有效的分钟数（≥1）');
+                return;
+            }
+            if (val > 480) {
+                alert('最多只能设置480分钟（8小时）');
+                return;
+            }
+            addAlarmPreset(val);
+            input.value = '';
+            initAlarmPresetButtons(); // 同步更新预设按钮
+        });
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addBtn.click();
+            }
+        });
+    }
+}
+
 initAlarmPresetButtons();
+initCustomAlarmPresets();
 
 // 闹钟事件监听
 alarmToggle.addEventListener('change', toggleAlarm);
