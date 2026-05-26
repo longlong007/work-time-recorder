@@ -479,8 +479,8 @@ function renderHistory() {
                         <span class="history-duration">${duration}</span>
                     </div>
                     <div class="history-item-actions">
-                        <button class="btn-edit-record" data-timestamp="${record.startTime}" title="编辑此记录">✏️</button>
-                        <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
+                        <button class="btn-edit-record" data-timestamp="${escapeAttr(record.startTime)}" title="编辑此记录">✏️</button>
+                        <button class="btn-delete-record" data-timestamp="${escapeAttr(record.startTime)}" title="删除此记录">🗑️</button>
                     </div>
                 </div>
                 ${tagChipsHtml}
@@ -959,7 +959,7 @@ function renderTagList() {
     }
     
     tagList.innerHTML = tags.map((tag, index) => `
-        <div class="tag-item" draggable="true" data-index="${index}" data-tag="${escapeAttr(tag)}">
+        <div class="tag-item" draggable="true" data-index="${String(index)}" data-tag="${escapeAttr(tag)}">
             <span class="tag-drag-handle">☰</span>
             <span class="tag-item-name">${escapeHtml(tag)}</span>
             <button class="btn-delete-tag" data-tag="${escapeAttr(tag)}">🗑️ 删除</button>
