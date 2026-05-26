@@ -66,3 +66,10 @@
 - Safari
 - Edge
 
+
+---
+
+## 文档
+
+- [使用手册](docs/USER_GUIDE.md) — 完整功能使用说明
+- [演进路线图](docs/ROADMAP.md) — v2-v4 功能规划方向
