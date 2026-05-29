@@ -1634,6 +1634,73 @@ function endFromAlarm() {
     endWork();
 }
 
+// ==================== 闹钟预设时长管理 ====================
+// 读取已保存的预设时长（无效或为空时回退到默认值）
+function getAlarmPresets() {
+    try {
+        const raw = localStorage.getItem(ALARM_PRESETS_KEY);
+        if (!raw) {
+            return [...DEFAULT_ALARM_PRESETS];
+        }
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            return [...DEFAULT_ALARM_PRESETS];
+        }
+        const valid = parsed
+            .map(n => parseInt(n, 10))
+            .filter(n => Number.isInteger(n) && n >= 1 && n <= 480);
+        return valid.length ? valid : [...DEFAULT_ALARM_PRESETS];
+    } catch (e) {
+        console.log('读取闹钟预设失败:', e);
+        return [...DEFAULT_ALARM_PRESETS];
+    }
+}
+
+// 保存预设时长
+function saveAlarmPresets(presets) {
+    try {
+        localStorage.setItem(ALARM_PRESETS_KEY, JSON.stringify(presets));
+    } catch (e) {
+        console.log('保存闹钟预设失败:', e);
+    }
+}
+
+// 新增一个预设时长
+function addAlarmPreset(minutes) {
+    const presets = getAlarmPresets();
+    if (presets.includes(minutes)) {
+        return;
+    }
+    presets.push(minutes);
+    presets.sort((a, b) => a - b);
+    saveAlarmPresets(presets);
+    renderAlarmPresets();
+}
+
+// 删除一个预设时长
+function removeAlarmPreset(minutes) {
+    const presets = getAlarmPresets().filter(p => p !== minutes);
+    saveAlarmPresets(presets);
+    renderAlarmPresets();
+    initAlarmPresetButtons();
+}
+
+// 渲染自定义预设时长列表（带删除按钮）
+function renderAlarmPresets() {
+    const list = document.getElementById('customAlarmPresets');
+    if (!list) return;
+    const presets = getAlarmPresets();
+    list.innerHTML = presets.map(p =>
+        `<span class="alarm-preset-chip" data-minutes="${p}">${p}分钟<span class="alarm-preset-remove" data-minutes="${p}" role="button" aria-label="删除${p}分钟预设">×</span></span>`
+    ).join('');
+    list.querySelectorAll('.alarm-preset-remove').forEach(el => {
+        el.addEventListener('click', () => {
+            const minutes = parseInt(el.dataset.minutes, 10);
+            removeAlarmPreset(minutes);
+        });
+    });
+}
+
 // 初始化预设按钮事件
 function initAlarmPresetButtons() {
     // 动态渲染预设按钮（基于本地存储的自定义列表）
