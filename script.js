@@ -1745,6 +1745,18 @@ function initCustomAlarmPresets() {
             }
         });
     }
+
+    // 管理区默认隐藏，通过按钮开关显示/收起，保持界面整洁
+    const toggleBtn = document.getElementById('toggleAlarmPresetsBtn');
+    const panel = document.getElementById('customAlarmPresetsPanel');
+    if (toggleBtn && panel) {
+        toggleBtn.addEventListener('click', () => {
+            const willShow = panel.hidden;
+            panel.hidden = !willShow;
+            toggleBtn.classList.toggle('active', willShow);
+            toggleBtn.setAttribute('aria-expanded', String(willShow));
+        });
+    }
 }
 
 initAlarmPresetButtons();

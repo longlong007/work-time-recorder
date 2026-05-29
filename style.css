@@ -1063,11 +1063,24 @@ body {
 
 
 /* 自定义闹钟时长管理 */
+.alarm-presets-toggle {
+    white-space: nowrap;
+}
+
+.alarm-presets-toggle.active {
+    background: var(--primary-color);
+    color: #fff;
+}
+
 .custom-alarm-presets {
     margin-top: 10px;
     padding: 8px 12px;
     background: rgba(90, 155, 196, 0.08);
     border-radius: 12px;
+}
+
+.custom-alarm-presets[hidden] {
+    display: none;
 }
 
 .custom-alarm-presets-header {
