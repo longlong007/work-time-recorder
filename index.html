@@ -21,6 +21,23 @@
                 </div>
             </div>
 
+            <!-- 账户与同步状态 -->
+            <div class="account-bar" id="accountBar" style="display: none;">
+                <div class="account-info">
+                    <span class="account-label">账户</span>
+                    <span class="account-email" id="accountEmail">未登录</span>
+                </div>
+                <div class="account-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="loginBtn">登录</button>
+                    <button type="button" class="btn btn-neutral btn-sm" id="logoutBtn" style="display: none;">登出</button>
+                </div>
+            </div>
+            <div class="sync-bar" id="syncBar" style="display: none;">
+                <span class="sync-icon" id="syncIcon">💾</span>
+                <span class="sync-status" id="syncStatus">本地模式</span>
+                <button type="button" class="btn btn-neutral btn-sm sync-now-btn" id="syncNowBtn">立即同步</button>
+            </div>
+
             <!-- 双栏布局容器（桌面端生效） -->
             <div class="layout-cols">
 
@@ -291,10 +308,65 @@
             </div>
         </div>
 
+        <!-- 登录/注册弹窗 -->
+        <div class="modal auth-modal" id="authModal" style="display: none;" data-mode="login">
+            <div class="modal-content auth-modal-content">
+                <div class="modal-header">
+                    <h3 id="authTitle">登录账户</h3>
+                    <button type="button" class="btn-close" id="closeAuthModalBtn" aria-label="关闭">✕</button>
+                </div>
+                <div class="modal-body">
+                    <form id="authForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="authEmail" class="form-label">邮箱</label>
+                            <input type="email" id="authEmail" class="form-input" placeholder="your@email.com" required autocomplete="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="authPassword" class="form-label">密码</label>
+                            <input type="password" id="authPassword" class="form-input" placeholder="至少 6 位" required minlength="6" autocomplete="current-password">
+                        </div>
+                        <div class="form-group" id="authConfirmGroup" style="display: none;">
+                            <label for="authConfirmPassword" class="form-label">确认密码</label>
+                            <input type="password" id="authConfirmPassword" class="form-input" placeholder="再次输入密码" minlength="6" autocomplete="new-password">
+                        </div>
+                        <p class="auth-error" id="authError" style="display: none;"></p>
+                        <button type="submit" class="btn btn-primary auth-submit-btn" id="authSubmitBtn">登录</button>
+                    </form>
+                    <p class="auth-switch" id="authSwitchText"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据迁移弹窗 -->
+        <div class="modal migration-modal" id="migrationModal" style="display: none;">
+            <div class="modal-content migration-modal-content">
+                <div class="modal-header">
+                    <h3 id="migrationTitle">迁移本地数据</h3>
+                    <button type="button" class="btn-close" id="closeMigrationModalBtn" aria-label="关闭">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p class="migration-desc" id="migrationDesc"></p>
+                    <div class="migration-actions">
+                        <button type="button" class="btn btn-primary btn-sm" id="migrationUploadBtn">上传到云端</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="migrationMergeBtn">合并两边数据</button>
+                        <button type="button" class="btn btn-neutral btn-sm" id="migrationCloudBtn">以云端为准</button>
+                        <button type="button" class="btn btn-neutral btn-sm" id="migrationLocalBtn">以本地为准</button>
+                        <button type="button" class="btn btn-neutral btn-sm" id="migrationSkipBtn">稍后处理</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 隐藏的文件输入元素 -->
         <input type="file" id="importFileInput" accept=".csv" style="display: none;">
     </div>
 
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script src="data-store.js"></script>
+    <script src="sync-engine.js"></script>
+    <script src="cloud-ui.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

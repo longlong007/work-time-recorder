@@ -1,8 +1,13 @@
-const CACHE_NAME = 'work-time-recorder-v1';
+const CACHE_NAME = 'work-time-recorder-v2';
 const urlsToCache = [
   '/work-time-recorder/',
   '/work-time-recorder/index.html',
   '/work-time-recorder/style.css',
+  '/work-time-recorder/config.js',
+  '/work-time-recorder/auth.js',
+  '/work-time-recorder/data-store.js',
+  '/work-time-recorder/sync-engine.js',
+  '/work-time-recorder/cloud-ui.js',
   '/work-time-recorder/script.js',
   '/work-time-recorder/manifest.json'
 ];

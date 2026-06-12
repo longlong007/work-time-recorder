@@ -1,7 +1,3 @@
-// 数据存储键
-const STORAGE_KEY = 'workTimeRecords';
-const TAGS_STORAGE_KEY = 'workTags';
-const ALARM_PRESETS_KEY = 'alarmPresets';
 const DEFAULT_ALARM_PRESETS = [5, 10, 15, 30, 45];
 const MORE_SETTINGS_OPEN_KEY = 'moreSettingsOpen';
 
@@ -145,33 +141,48 @@ function registerServiceWorker() {
 
 // 加载当前记录
 function loadCurrentRecord() {
-    const saved = localStorage.getItem('currentRecord');
-    if (saved) {
-        let record;
-        try {
-            record = JSON.parse(saved);
-        } catch (e) {
-            localStorage.removeItem('currentRecord');
+    const record = DataStore.getCurrentRecord();
+    if (record.isActive && record.startTime) {
+        currentRecord = record;
+        const start = new Date(record.startTime);
+        const now = new Date();
+        if (start.toDateString() !== now.toDateString()) {
+            endWork();
             return;
         }
-        if (record.isActive && record.startTime) {
-            currentRecord = record;
-            // 检查是否跨天，如果跨天则自动结束
-            const start = new Date(record.startTime);
-            const now = new Date();
-            if (start.toDateString() !== now.toDateString()) {
-                endWork();
-                return;
-            }
-            workNameInput.value = record.workName || '';
-            workNameInput.disabled = true;
-        }
+        workNameInput.value = record.workName || '';
+        workNameInput.disabled = true;
     }
 }
 
 // 保存当前记录
 function saveCurrentRecord() {
-    localStorage.setItem('currentRecord', JSON.stringify(currentRecord));
+    DataStore.saveCurrentRecord(currentRecord);
+}
+
+// 应用远端设备进行中的计时
+function applyRemoteActiveSession(session) {
+    if (currentRecord.isActive) return;
+    const start = new Date(session.startTime);
+    const now = new Date();
+    if (start.toDateString() !== now.toDateString()) return;
+
+    const useRemote = confirm(
+        `另一台设备正在计时：「${session.workName || '未命名工作'}」\n是否在本机显示该计时状态？`
+    );
+    if (!useRemote) return;
+
+    currentRecord = {
+        startTime: session.startTime,
+        endTime: null,
+        isActive: true,
+        workName: session.workName || ''
+    };
+    workNameInput.value = currentRecord.workName;
+    workNameInput.disabled = true;
+    updateDisplay();
+    startElapsedTimer();
+    startAlarmTimer();
 }
 
 // 开始工作
@@ -224,7 +235,7 @@ function endWork() {
         workName: ''
     };
     
-    localStorage.removeItem('currentRecord');
+    DataStore.clearCurrentRecord();
     updateDisplay();
     renderHistory();
     updateStatistics();
@@ -240,24 +251,12 @@ function endWork() {
 
 // 保存历史记录
 function saveHistoryRecord(record) {
-    const records = getHistoryRecords();
-    records.push(record);
-    // 按开始时间倒序排列
-    records.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    DataStore.saveRecord(record);
 }
 
 // 获取历史记录
 function getHistoryRecords() {
-    const records = localStorage.getItem(STORAGE_KEY);
-    if (!records) return [];
-    try {
-        return JSON.parse(records);
-    } catch (e) {
-        console.warn('历史记录数据损坏，已重置');
-        localStorage.removeItem(STORAGE_KEY);
-        return [];
-    }
+    return DataStore.getRecords();
 }
 
 // 计算时长（毫秒）
@@ -481,8 +480,8 @@ function renderHistory() {
                         <span class="history-duration">${duration}</span>
                     </div>
                     <div class="history-item-actions">
-                        <button class="btn-edit-record" data-timestamp="${record.startTime}" title="编辑此记录">✏️</button>
-                        <button class="btn-delete-record" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
+                        <button class="btn-edit-record" data-id="${record.id}" data-timestamp="${record.startTime}" title="编辑此记录">✏️</button>
+                        <button class="btn-delete-record" data-id="${record.id}" data-timestamp="${record.startTime}" title="删除此记录">🗑️</button>
                     </div>
                 </div>
                 ${tagChipsHtml}
@@ -499,8 +498,7 @@ function renderHistory() {
     document.querySelectorAll('.btn-edit-record').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const timestamp = btn.dataset.timestamp;
-            openEditModal(timestamp);
+            openEditModal(btn.dataset.id || btn.dataset.timestamp);
         });
     });
     
@@ -508,8 +506,7 @@ function renderHistory() {
     document.querySelectorAll('.btn-delete-record').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const timestamp = btn.dataset.timestamp;
-            deleteRecord(timestamp);
+            deleteRecord(btn.dataset.id || btn.dataset.timestamp);
         });
     });
 }
@@ -553,16 +550,13 @@ function updateStatistics() {
     monthTotal.textContent = formatDuration(monthTotalMs);
 }
 
-// 删除单条记录
-function deleteRecord(timestamp) {
+// 删除单条记录（支持 id 或 startTime）
+function deleteRecord(idOrTimestamp) {
     if (!confirm('确定要删除这条记录吗？此操作不可恢复！')) {
         return;
     }
     
-    const records = getHistoryRecords();
-    const filteredRecords = records.filter(record => record.startTime !== timestamp);
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredRecords));
+    DataStore.deleteRecord(idOrTimestamp);
     renderHistory();
     updateStatistics();
 }
@@ -777,13 +771,8 @@ function importFromCSV(event) {
                 return;
             }
 
-            const existingRecords = getHistoryRecords();
-            const allRecords = [...existingRecords, ...newRecords];
-            // 按开始时间倒序排列
-            allRecords.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
+            DataStore.importRecords(newRecords);
 
-            // 刷新显示
             renderHistory();
             updateStatistics();
             alert(`成功导入 ${newRecords.length} 条记录！`);
@@ -802,7 +791,7 @@ function importFromCSV(event) {
 // 清空记录
 function clearHistory() {
     if (confirm('确定要清空所有历史记录吗？此操作不可恢复！')) {
-        localStorage.removeItem(STORAGE_KEY);
+        DataStore.clearAllRecords();
         renderHistory();
         updateStatistics();
     }
@@ -825,7 +814,7 @@ function resetFilter() {
 // ==================== 主题切换功能 ====================
 
 function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = DataStore.getTheme();
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
@@ -835,9 +824,8 @@ function initTheme() {
         themeToggle.textContent = '🌙';
     }
     
-    // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        if (!localStorage.getItem('theme')) {
+        if (!DataStore.getTheme()) {
             if (e.matches) {
                 document.documentElement.setAttribute('data-theme', 'dark');
                 themeToggle.textContent = '☀️';
@@ -854,11 +842,11 @@ function toggleTheme() {
     
     if (isDark) {
         document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('theme', 'light');
+        DataStore.saveTheme('light');
         themeToggle.textContent = '🌙';
     } else {
         document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('theme', 'dark');
+        DataStore.saveTheme('dark');
         themeToggle.textContent = '☀️';
     }
 }
@@ -892,20 +880,12 @@ function escapeAttr(text) {
 
 // 获取标签列表
 function getTags() {
-    const tags = localStorage.getItem(TAGS_STORAGE_KEY);
-    if (!tags) return ['开发', '会议', '学习', '调试', '文档'];
-    try {
-        return JSON.parse(tags);
-    } catch (e) {
-        console.warn('标签数据损坏，已重置');
-        localStorage.removeItem(TAGS_STORAGE_KEY);
-        return ['开发', '会议', '学习', '调试', '文档'];
-    }
+    return DataStore.getTags();
 }
 
 // 保存标签列表
 function saveTags(tags) {
-    localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(tags));
+    DataStore.saveTags(tags);
 }
 
 // 加载标签
@@ -1189,17 +1169,15 @@ function toDatetimeLocal(isoString) {
 }
 
 // 打开编辑弹窗
-function openEditModal(timestamp) {
-    const records = getHistoryRecords();
-    const record = records.find(r => r.startTime === timestamp);
+function openEditModal(idOrTimestamp) {
+    const record = DataStore.findRecord(idOrTimestamp);
     
     if (!record) {
         alert('找不到该记录');
         return;
     }
     
-    // 保存当前编辑的记录
-    currentEditingRecord = timestamp;
+    currentEditingRecord = record.id;
     
     // 填充表单
     editWorkName.value = record.workName || '';
@@ -1252,31 +1230,19 @@ function saveEdit() {
         return;
     }
     
-    // 获取所有记录
-    const records = getHistoryRecords();
-    const recordIndex = records.findIndex(r => r.startTime === currentEditingRecord);
+    const updated = DataStore.updateRecord(currentEditingRecord, {
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        duration: calculateDuration(startTime.toISOString(), endTime.toISOString()),
+        workName: workName || '未命名工作'
+    });
     
-    if (recordIndex === -1) {
+    if (!updated) {
         alert('找不到该记录');
         closeEditModal();
         return;
     }
     
-    // 更新记录
-    records[recordIndex] = {
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        duration: calculateDuration(startTime.toISOString(), endTime.toISOString()),
-        workName: workName || '未命名工作'
-    };
-    
-    // 重新排序
-    records.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-    
-    // 保存
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    
-    // 关闭弹窗
     closeEditModal();
     
     // 刷新显示
@@ -1296,13 +1262,29 @@ editModal.addEventListener('click', (e) => {
     }
 });
 
-// 页面加载时初始化
-init();
+// 云端模块初始化后启动应用
+async function bootstrap() {
+    await Auth.init();
+    DataStore.init();
+    SyncEngine.init();
+    CloudUI.init();
 
-// 如果当前有活动记录，启动计时器
-if (currentRecord.isActive && currentRecord.startTime) {
-    startElapsedTimer();
+    DataStore.onDataChanged(() => {
+        renderHistory();
+        updateStatistics();
+        renderQuickTags();
+        renderAlarmPresets();
+        initAlarmPresetButtons();
+    });
+
+    init();
+
+    if (currentRecord.isActive && currentRecord.startTime) {
+        startElapsedTimer();
+    }
 }
+
+bootstrap();
 
 // ==================== 闹钟功能 ====================
 
@@ -1637,32 +1619,12 @@ function endFromAlarm() {
 // ==================== 闹钟预设时长管理 ====================
 // 读取已保存的预设时长（无效或为空时回退到默认值）
 function getAlarmPresets() {
-    try {
-        const raw = localStorage.getItem(ALARM_PRESETS_KEY);
-        if (!raw) {
-            return [...DEFAULT_ALARM_PRESETS];
-        }
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) {
-            return [...DEFAULT_ALARM_PRESETS];
-        }
-        const valid = parsed
-            .map(n => parseInt(n, 10))
-            .filter(n => Number.isInteger(n) && n >= 1 && n <= 480);
-        return valid.length ? valid : [...DEFAULT_ALARM_PRESETS];
-    } catch (e) {
-        console.log('读取闹钟预设失败:', e);
-        return [...DEFAULT_ALARM_PRESETS];
-    }
+    return DataStore.getAlarmPresets();
 }
 
 // 保存预设时长
 function saveAlarmPresets(presets) {
-    try {
-        localStorage.setItem(ALARM_PRESETS_KEY, JSON.stringify(presets));
-    } catch (e) {
-        console.log('保存闹钟预设失败:', e);
-    }
+    DataStore.saveAlarmPresets(presets);
 }
 
 // 新增一个预设时长
