@@ -17,7 +17,9 @@ function isMissingDocError(err) {
 function extractDoc(result) {
     if (!result) return null;
     if (Array.isArray(result.data)) return result.data[0] || null;
-    if (result.data && typeof result.data === 'object') return result.data;
+    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+        return result.data;
+    }
     return null;
 }
 
@@ -36,6 +38,32 @@ function normalizeRecord(record) {
     };
 }
 
+async function removeOne(db, uid, recordId) {
+    const coll = db.collection('work_records');
+    let doc = null;
+    try {
+        const getRes = await coll.doc(recordId).get();
+        doc = extractDoc(getRes);
+    } catch (e) {
+        if (isMissingDocError(e)) return;
+        throw e;
+    }
+
+    // 文档已不存在，视为删除成功
+    if (!doc) return;
+
+    if (doc._openid && doc._openid !== uid) {
+        throw new Error(`无权删除：${recordId}`);
+    }
+
+    try {
+        await coll.doc(recordId).remove();
+    } catch (e) {
+        if (isMissingDocError(e)) return;
+        throw e;
+    }
+}
+
 async function upsertOne(db, uid, record) {
     const coll = db.collection('work_records');
     const payload = {
@@ -44,45 +72,43 @@ async function upsertOne(db, uid, record) {
         duration: record.duration,
         workName: record.workName || '',
         updatedAt: record.updatedAt,
-        deletedAt: record.deletedAt || null
+        deletedAt: null
     };
 
-    async function verifyDeleted() {
-        if (!record.deletedAt) return;
-        const verifyRes = await coll.doc(record.id).field({ deletedAt: true }).get();
-        const doc = extractDoc(verifyRes);
-        if (!doc || !doc.deletedAt) {
-            throw new Error(`删除未生效：${record.id}`);
-        }
-    }
-
-    // 服务端 admin：按 doc id 更新，避免 _openid 条件不匹配导致静默 0 行更新
     try {
         await coll.doc(record.id).update(payload);
-        await verifyDeleted();
         return;
     } catch (e) {
-        if (/删除未生效/.test(e.message || '')) throw e;
         if (!isMissingDocError(e)) throw e;
     }
 
     try {
         await coll.add({ _id: record.id, _openid: uid, ...payload });
-        await verifyDeleted();
     } catch (e) {
         if (!isDuplicateError(e)) throw e;
         await coll.doc(record.id).update(payload);
-        await verifyDeleted();
     }
+}
+
+async function processOne(db, uid, record) {
+    if (record.deletedAt) {
+        await removeOne(db, uid, record.id);
+        return;
+    }
+    await upsertOne(db, uid, record);
 }
 
 async function upsertChunk(db, uid, chunk, assumeNew) {
     let uploaded = 0;
     const failed = [];
 
-    if (assumeNew && chunk.length > 1 && !chunk.some((record) => record.deletedAt)) {
+    const toDelete = chunk.filter((r) => r.deletedAt);
+    const toUpsert = chunk.filter((r) => !r.deletedAt);
+
+    // 仅「全新插入」批可走批量 add；删除与更新必须逐条
+    if (assumeNew && toUpsert.length > 1 && toDelete.length === 0) {
         try {
-            const docs = chunk.map((record) => ({
+            const docs = toUpsert.map((record) => ({
                 _id: record.id,
                 _openid: uid,
                 startTime: record.startTime,
@@ -90,10 +116,10 @@ async function upsertChunk(db, uid, chunk, assumeNew) {
                 duration: record.duration,
                 workName: record.workName || '',
                 updatedAt: record.updatedAt,
-                deletedAt: record.deletedAt || null
+                deletedAt: null
             }));
             await db.collection('work_records').add(docs);
-            return { uploaded: chunk.length, failed: [] };
+            return { uploaded: toUpsert.length, failed: [] };
         } catch (e) {
             console.warn('batch add fallback to single upsert:', e.message || e);
         }
@@ -101,7 +127,7 @@ async function upsertChunk(db, uid, chunk, assumeNew) {
 
     for (const record of chunk) {
         try {
-            await upsertOne(db, uid, record);
+            await processOne(db, uid, record);
             uploaded += 1;
         } catch (e) {
             failed.push({ id: record.id, error: (e && e.message) || String(e) });

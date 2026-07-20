@@ -142,11 +142,12 @@ const SyncEngine = (function () {
     }
 
     function shouldUseCloudBatch(records) {
-        return Boolean(
-            records &&
-            records.length >= CLOUD_BATCH_THRESHOLD &&
-            typeof Auth.callFunction === 'function'
-        );
+        if (!records || records.length === 0 || typeof Auth.callFunction !== 'function') {
+            return false;
+        }
+        // 删除必须走云函数物理删除；单条删除也强制走云函数
+        if (records.some((r) => r && r.deletedAt)) return true;
+        return records.length >= CLOUD_BATCH_THRESHOLD;
     }
 
     function docToRecord(doc) {
@@ -437,49 +438,29 @@ const SyncEngine = (function () {
             .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
     }
 
-    async function softDeleteWorkRecord(db, record) {
-        const payload = recordForCloud(record);
-        if (!payload.deletedAt) {
-            throw new Error('删除记录缺少 deletedAt');
-        }
+    // 物理删除：控制台文档应直接消失。优先用 where(_openid+_id).remove()
+    async function hardDeleteWorkRecord(db, record) {
+        if (!record || !record.id) throw new Error('删除记录缺少 id');
 
         const coll = db.collection('work_records');
         const query = whereOwned(record.id);
 
-        async function verifyDeleted() {
-            const getRes = await withTimeout(
-                coll.where(query).field({ deletedAt: true }).limit(1).get(),
-                'get'
-            );
-            throwIfDbError(getRes);
-            const docs = extractDocs(getRes);
-            return docs.length > 0 && Boolean(docs[0].deletedAt);
+        const removeRes = await withTimeout(coll.where(query).remove(), 'remove');
+        throwIfDbError(removeRes);
+
+        const getRes = await withTimeout(
+            coll.where(query).limit(1).get(),
+            'get'
+        );
+        throwIfDbError(getRes);
+        if (extractDocs(getRes).length > 0) {
+            throw new Error(`删除未生效：${record.id}`);
         }
-
-        const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
-        throwIfDbError(updateRes);
-        if (getUpdatedCount(updateRes) > 0) return;
-        if (await verifyDeleted()) return;
-
-        try {
-            const addRes = await withTimeout(coll.add({ _id: record.id, ...payload }), 'add');
-            throwIfDbError(addRes);
-            return;
-        } catch (e) {
-            if (!isDuplicateError(e)) throw e;
-        }
-
-        const retryRes = await withTimeout(coll.where(query).update(payload), 'update');
-        throwIfDbError(retryRes);
-        if (getUpdatedCount(retryRes) > 0) return;
-        if (await verifyDeleted()) return;
-
-        throw new Error(`删除同步失败：${record.id}`);
     }
 
     async function syncWorkRecordToCloud(db, record, assumeNew = false) {
-        if (record.deletedAt && !assumeNew) {
-            return softDeleteWorkRecord(db, record);
+        if (record.deletedAt) {
+            return hardDeleteWorkRecord(db, record);
         }
         return upsertWorkRecord(db, record, assumeNew);
     }
