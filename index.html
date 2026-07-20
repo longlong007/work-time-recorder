@@ -22,7 +22,7 @@
             </div>
 
             <!-- 账户与同步状态 -->
-            <div class="account-bar" id="accountBar" style="display: none;">
+            <div class="account-bar" id="accountBar">
                 <div class="account-info">
                     <span class="account-label">账户</span>
                     <span class="account-email" id="accountEmail">未登录</span>
@@ -32,7 +32,7 @@
                     <button type="button" class="btn btn-neutral btn-sm" id="logoutBtn" style="display: none;">登出</button>
                 </div>
             </div>
-            <div class="sync-bar" id="syncBar" style="display: none;">
+            <div class="sync-bar" id="syncBar">
                 <span class="sync-icon" id="syncIcon">💾</span>
                 <span class="sync-status" id="syncStatus">本地模式</span>
                 <button type="button" class="btn btn-neutral btn-sm sync-now-btn" id="syncNowBtn">立即同步</button>
@@ -329,6 +329,13 @@
                             <label for="authConfirmPassword" class="form-label">确认密码</label>
                             <input type="password" id="authConfirmPassword" class="form-input" placeholder="再次输入密码" minlength="6" autocomplete="new-password">
                         </div>
+                        <div class="form-group" id="authCodeGroup" style="display: none;">
+                            <label for="authVerificationCode" class="form-label">邮箱验证码</label>
+                            <div class="auth-code-row">
+                                <input type="text" id="authVerificationCode" class="form-input" placeholder="6 位验证码" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                                <button type="button" class="btn btn-neutral btn-sm" id="authSendCodeBtn">获取验证码</button>
+                            </div>
+                        </div>
                         <p class="auth-error" id="authError" style="display: none;"></p>
                         <button type="submit" class="btn btn-primary auth-submit-btn" id="authSubmitBtn">登录</button>
                     </form>
@@ -346,7 +353,15 @@
                 </div>
                 <div class="modal-body">
                     <p class="migration-desc" id="migrationDesc"></p>
-                    <div class="migration-actions">
+                    <div class="migration-progress" id="migrationProgress" style="display: none;">
+                        <div class="migration-progress-info">
+                            <span class="migration-progress-label" id="migrationProgressText">上传中 0 / 0</span>
+                        </div>
+                        <div class="migration-progress-track">
+                            <div class="migration-progress-bar" id="migrationProgressBar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="migration-actions" id="migrationActions">
                         <button type="button" class="btn btn-primary btn-sm" id="migrationUploadBtn">上传到云端</button>
                         <button type="button" class="btn btn-primary btn-sm" id="migrationMergeBtn">合并两边数据</button>
                         <button type="button" class="btn btn-neutral btn-sm" id="migrationCloudBtn">以云端为准</button>
@@ -361,12 +376,12 @@
         <input type="file" id="importFileInput" accept=".csv" style="display: none;">
     </div>
 
-    <script src="config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auth.js"></script>
-    <script src="data-store.js"></script>
-    <script src="sync-engine.js"></script>
-    <script src="cloud-ui.js"></script>
-    <script src="script.js"></script>
+    <script src="config.js?v=20260713"></script>
+    <script src="vendor/cloudbase.js"></script>
+    <script src="auth.js?v=20260720a"></script>
+    <script src="data-store.js?v=20260720b"></script>
+    <script src="sync-engine.js?v=20260720b"></script>
+    <script src="cloud-ui.js?v=20260720b"></script>
+    <script src="script.js?v=20260713d"></script>
 </body>
 </html>

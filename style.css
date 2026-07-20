@@ -342,6 +342,22 @@ body {
     margin-top: 16px;
 }
 
+.auth-code-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.auth-code-row .form-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.auth-code-row .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .link-btn {
     background: none;
     border: none;
@@ -364,6 +380,35 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.migration-progress {
+    margin-bottom: 16px;
+}
+
+.migration-progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.migration-progress-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.migration-progress-track {
+    background: var(--bg-lighter);
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.migration-progress-bar {
+    background: linear-gradient(90deg, var(--primary-solid), var(--primary-light, #60a5fa));
+    border-radius: 999px;
+    height: 100%;
+    transition: width 0.25s ease;
 }
 
 [data-theme="dark"] .header-icon-btn,

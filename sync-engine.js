@@ -1,8 +1,16 @@
-// 同步引擎 — 离线优先，Last-Write-Wins 合并
+// 同步引擎 — 离线优先，Last-Write-Wins 合并（CloudBase 文档数据库）
 const SyncEngine = (function () {
     const PENDING_OPS_KEY = 'pendingSyncOps';
     const LAST_SYNCED_KEY = 'lastSyncedAt';
     const ACTIVE_SESSION_KEY = 'currentRecord';
+    const PAGE_SIZE = 100;
+    // 上传节流：低并发 + 单请求超时，避免突发请求打满 CloudBase 写 QPS 导致卡死。
+    // 限流/超时不在此处自动重试（会火上浇油），失败的 op 留在队列由 sync 层稍后重调。
+    const UPLOAD_CONCURRENCY = 4;
+    const REQUEST_TIMEOUT_MS = 15000;
+    const SYNC_WATCHDOG_MS = 90000;
+    const CLOUD_BATCH_SIZE = 100;
+    const CLOUD_BATCH_THRESHOLD = 5;
 
     const STATUS = {
         IDLE: 'idle',
@@ -15,10 +23,14 @@ const SyncEngine = (function () {
 
     let status = STATUS.IDLE;
     let statusListeners = [];
-    let realtimeChannel = null;
+    let activeSessionWatcher = null;
     let remoteActiveSessionHandler = null;
     let syncInProgress = false;
+    let syncStartedAt = 0;
     let syncDebounceTimer = null;
+    // 补传（全量差集）仅在每次登录会话首次同步时做一次，之后靠 pending 队列增量
+    let backfillDone = false;
+    let uploadProgressListeners = [];
 
     function setStatus(next) {
         status = next;
@@ -50,6 +62,10 @@ const SyncEngine = (function () {
 
     function canSync() {
         return APP_CONFIG.isCloudEnabled() && Auth.isLoggedIn() && isOnline();
+    }
+
+    function getDb() {
+        return Auth.getDb();
     }
 
     function getPendingOps() {
@@ -85,29 +101,307 @@ const SyncEngine = (function () {
         localStorage.setItem(LAST_SYNCED_KEY, iso);
     }
 
-    function recordToRow(record, userId) {
+    function recordForCloud(record) {
         return {
-            id: record.id,
-            user_id: userId,
-            start_time: record.startTime,
-            end_time: record.endTime,
-            duration_ms: record.duration,
-            work_name: record.workName || '',
-            updated_at: record.updatedAt,
-            deleted_at: record.deletedAt || null
+            startTime: record.startTime,
+            endTime: record.endTime,
+            duration: record.duration,
+            workName: record.workName || '',
+            updatedAt: record.updatedAt,
+            deletedAt: record.deletedAt || null
         };
     }
 
-    function rowToRecord(row) {
+    function recordPayloadForCloud(record) {
         return {
-            id: row.id,
-            startTime: row.start_time,
-            endTime: row.end_time,
-            duration: row.duration_ms,
-            workName: row.work_name || '',
-            updatedAt: row.updated_at,
-            deletedAt: row.deleted_at || null
+            id: record.id,
+            ...recordForCloud(record)
         };
+    }
+
+    function notifyUploadProgress(done, total) {
+        uploadProgressListeners.forEach((cb) => {
+            try {
+                cb(done, total);
+            } catch (e) {
+                console.error('Upload progress listener error:', e);
+            }
+        });
+    }
+
+    function onUploadProgress(callback) {
+        uploadProgressListeners.push(callback);
+        return () => {
+            const idx = uploadProgressListeners.indexOf(callback);
+            if (idx >= 0) uploadProgressListeners.splice(idx, 1);
+        };
+    }
+
+    function getBatchFunctionName() {
+        return APP_CONFIG.CLOUDBASE_BATCH_FN || 'batchUpsertWorkRecords';
+    }
+
+    function shouldUseCloudBatch(records) {
+        return Boolean(
+            records &&
+            records.length >= CLOUD_BATCH_THRESHOLD &&
+            typeof Auth.callFunction === 'function'
+        );
+    }
+
+    function docToRecord(doc) {
+        return {
+            id: doc._id,
+            startTime: doc.startTime,
+            endTime: doc.endTime,
+            duration: doc.duration,
+            workName: doc.workName || '',
+            updatedAt: doc.updatedAt,
+            deletedAt: doc.deletedAt || null
+        };
+    }
+
+    function isActiveRecord(doc) {
+        return !doc.deletedAt;
+    }
+
+    // CloudBase 安全规则要求查询条件包含 _openid，不能直接用 doc(id).get/set
+    function whereOwned(docId) {
+        const query = { _openid: '{openid}' };
+        if (docId) query._id = docId;
+        return query;
+    }
+
+    function extractDocs(result) {
+        if (!result) return [];
+        if (Array.isArray(result.data)) return result.data;
+        if (result.data && Array.isArray(result.data.list)) return result.data.list;
+        return [];
+    }
+
+    function throwIfDbError(result) {
+        if (result && result.error) throw result.error;
+    }
+
+    // 有界并发执行：同时最多 concurrency 个 worker，保持结果顺序
+    async function runPool(items, worker, concurrency) {
+        const results = new Array(items.length);
+        let cursor = 0;
+
+        async function runner() {
+            while (cursor < items.length) {
+                const index = cursor;
+                cursor += 1;
+                results[index] = await worker(items[index], index);
+            }
+        }
+
+        const size = Math.max(1, Math.min(concurrency, items.length));
+        const runners = [];
+        for (let i = 0; i < size; i++) runners.push(runner());
+        await Promise.all(runners);
+        return results;
+    }
+
+    function errorText(e) {
+        const code = e && (e.code || e.errCode || e.error);
+        const msg = (e && e.message) || e || '';
+        return `${code || ''} ${msg}`;
+    }
+
+    function isDuplicateError(e) {
+        const code = e && (e.code || e.errCode || e.error);
+        if (code === 'DATABASE_DUPLICATE_KEY') return true;
+        return /duplicate|already exist|exists/i.test(errorText(e));
+    }
+
+    // 给每个 CloudBase 请求套超时：SDK 默认无超时，被打满时请求会永久挂起，
+    // 拖住 Promise.all 导致 syncInProgress 永远卡在 true。超时后 reject，
+    // 让该 op 失败留在队列，由 scheduleSync 稍后重调（天然限速）。
+    function withTimeout(promise, label) {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(
+                () => reject(new Error(`${label || 'request'} 超时（${REQUEST_TIMEOUT_MS}ms）`)),
+                REQUEST_TIMEOUT_MS
+            );
+        });
+        return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+    }
+
+    function getUpdatedCount(res) {
+        if (!res) return 0;
+        if (typeof res.updated === 'number') return res.updated;
+        if (res.stats && typeof res.stats.updated === 'number') return res.stats.updated;
+        if (res.data && typeof res.data.updated === 'number') return res.data.updated;
+        return 0;
+    }
+
+    async function fetchAllDocs(db, collectionName, buildQuery) {
+        const all = [];
+        let skip = 0;
+
+        while (true) {
+            let query = db.collection(collectionName);
+            query = buildQuery(query);
+            const result = await withTimeout(query.skip(skip).limit(PAGE_SIZE).get(), 'get');
+            throwIfDbError(result);
+
+            const docs = extractDocs(result);
+            if (docs.length === 0) break;
+
+            all.push(...docs);
+            if (docs.length < PAGE_SIZE) break;
+            skip += docs.length;
+        }
+
+        return all;
+    }
+
+    async function uploadWorkRecordsViaCloudFunction(records, { assumeNew = false, onProgress } = {}) {
+        const failed = [];
+        let uploaded = 0;
+        const total = records.length;
+        const fnName = getBatchFunctionName();
+
+        for (let i = 0; i < records.length; i += CLOUD_BATCH_SIZE) {
+            const chunk = records.slice(i, i + CLOUD_BATCH_SIZE);
+            const result = await Auth.callFunction(fnName, {
+                records: chunk.map(recordPayloadForCloud),
+                assumeNew
+            });
+
+            if (!result || result.ok === false) {
+                throw new Error((result && result.error) || '云函数批量上传失败');
+            }
+
+            uploaded += result.uploaded || 0;
+            if (Array.isArray(result.failed) && result.failed.length > 0) {
+                const failedIds = new Set(result.failed.map((f) => f.id));
+                chunk.forEach((record) => {
+                    if (failedIds.has(record.id)) failed.push(record);
+                });
+            }
+
+            const done = Math.min(i + chunk.length, total);
+            notifyUploadProgress(done, total);
+            if (onProgress) onProgress(done, total);
+        }
+
+        return { uploaded, failed };
+    }
+
+    async function uploadWorkRecordsClient(db, records, { assumeNew = false, onProgress } = {}) {
+        const failed = [];
+        let uploaded = 0;
+        const total = records.length;
+        if (!records || records.length === 0) return { uploaded, failed };
+
+        const results = await runPool(
+            records,
+            async (record) => {
+                try {
+                    await syncWorkRecordToCloud(db, record, assumeNew);
+                    return { ok: true };
+                } catch (e) {
+                    console.error('Upload record failed:', record.id, e);
+                    return { ok: false, record };
+                }
+            },
+            UPLOAD_CONCURRENCY
+        );
+
+        results.forEach((r, index) => {
+            if (r.ok) uploaded += 1;
+            else failed.push(r.record);
+            const done = index + 1;
+            notifyUploadProgress(done, total);
+            if (onProgress) onProgress(done, total);
+        });
+
+        return { uploaded, failed };
+    }
+
+    async function uploadWorkRecordsBatched(db, records, { assumeNew = false, onProgress } = {}) {
+        if (!records || records.length === 0) return { uploaded: 0, failed: [] };
+
+        if (shouldUseCloudBatch(records)) {
+            try {
+                return await uploadWorkRecordsViaCloudFunction(records, { assumeNew, onProgress });
+            } catch (e) {
+                console.warn('云函数批量上传不可用，回退逐条模式:', e.message || e);
+            }
+        }
+
+        return uploadWorkRecordsClient(db, records, { assumeNew, onProgress });
+    }
+
+    async function fetchAllCloudRecordIds(db) {
+        const docs = await fetchAllDocs(db, 'work_records', (query) =>
+            query.where({ _openid: '{openid}' }).field({ deletedAt: true })
+        );
+        const ids = new Set();
+        docs.forEach((doc) => {
+            if (!doc.deletedAt) ids.add(doc._id);
+        });
+        return ids;
+    }
+
+    // 仅在每次登录会话的首次同步做一次「云端全量差集」补传，
+    // 用于捕获登出期间创建、未进入 pending 队列的本地记录。
+    // 之后所有本地增删改都会入队增量同步，无需每次全表扫描。
+    async function backfillMissingOnce(db) {
+        if (backfillDone) return null;
+
+        const localRecords = DataStore.getAllRecordsRaw();
+        if (localRecords.length === 0) {
+            backfillDone = true;
+            return null;
+        }
+
+        let cloudIds;
+        try {
+            cloudIds = await fetchAllCloudRecordIds(db);
+        } catch (e) {
+            // 扫描失败不置位，下次同步再试
+            console.warn('补传差集检查失败，下次同步重试', e);
+            return null;
+        }
+
+        backfillDone = true;
+        // 排除已在 pending 队列的记录：它们已由 pushPendingOps 处理，避免重复上传
+        const pendingIds = new Set(getPendingOps().map((o) => o.id));
+        const missing = localRecords.filter((r) => !cloudIds.has(r.id) && !pendingIds.has(r.id));
+        if (missing.length === 0) return null;
+
+        console.info(`补传本地记录：${missing.length} 条`);
+        return uploadWorkRecordsBatched(db, missing, { assumeNew: true });
+    }
+
+    async function upsertOwnedDoc(db, collectionName, docId, data) {
+        const coll = db.collection(collectionName);
+        const query = whereOwned(docId);
+        const getRes = await withTimeout(coll.where(query).limit(1).get(), 'get');
+        throwIfDbError(getRes);
+
+        if (extractDocs(getRes).length > 0) {
+            const updateRes = await withTimeout(coll.where(query).update(data), 'update');
+            throwIfDbError(updateRes);
+            return;
+        }
+
+        const addRes = await withTimeout(coll.add({ _id: docId, ...data }), 'add');
+        throwIfDbError(addRes);
+    }
+
+    async function getOwnedDoc(db, collectionName, docId) {
+        const res = await withTimeout(
+            db.collection(collectionName).where(whereOwned(docId)).limit(1).get(),
+            'get'
+        );
+        throwIfDbError(res);
+        const docs = extractDocs(res);
+        return docs.length > 0 ? docs[0] : null;
     }
 
     function mergeRecords(localRecords, remoteRecords) {
@@ -143,107 +437,179 @@ const SyncEngine = (function () {
             .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
     }
 
+    async function softDeleteWorkRecord(db, record) {
+        const payload = recordForCloud(record);
+        if (!payload.deletedAt) {
+            throw new Error('删除记录缺少 deletedAt');
+        }
+
+        const coll = db.collection('work_records');
+        const query = whereOwned(record.id);
+
+        async function verifyDeleted() {
+            const getRes = await withTimeout(
+                coll.where(query).field({ deletedAt: true }).limit(1).get(),
+                'get'
+            );
+            throwIfDbError(getRes);
+            const docs = extractDocs(getRes);
+            return docs.length > 0 && Boolean(docs[0].deletedAt);
+        }
+
+        const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
+        throwIfDbError(updateRes);
+        if (getUpdatedCount(updateRes) > 0) return;
+        if (await verifyDeleted()) return;
+
+        try {
+            const addRes = await withTimeout(coll.add({ _id: record.id, ...payload }), 'add');
+            throwIfDbError(addRes);
+            return;
+        } catch (e) {
+            if (!isDuplicateError(e)) throw e;
+        }
+
+        const retryRes = await withTimeout(coll.where(query).update(payload), 'update');
+        throwIfDbError(retryRes);
+        if (getUpdatedCount(retryRes) > 0) return;
+        if (await verifyDeleted()) return;
+
+        throw new Error(`删除同步失败：${record.id}`);
+    }
+
+    async function syncWorkRecordToCloud(db, record, assumeNew = false) {
+        if (record.deletedAt && !assumeNew) {
+            return softDeleteWorkRecord(db, record);
+        }
+        return upsertWorkRecord(db, record, assumeNew);
+    }
+
+    // upsert（安全规则要求 where 带 _openid，故不用 doc(id).set）：
+    // - 迁移/补传（assumeNew）：先 add，命中重复再 update —— 新记录 1 次往返
+    // - 常规增量：先 update，命中 0 条再 add —— 已存在记录 1 次往返
+    async function upsertWorkRecord(db, record, assumeNew = false) {
+        const payload = recordForCloud(record);
+        const coll = db.collection('work_records');
+        const query = whereOwned(record.id);
+
+        async function addThenUpdateOnDup() {
+            try {
+                const addRes = await withTimeout(coll.add({ _id: record.id, ...payload }), 'add');
+                throwIfDbError(addRes);
+            } catch (e) {
+                if (!isDuplicateError(e)) throw e;
+                const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
+                throwIfDbError(updateRes);
+                if (getUpdatedCount(updateRes) === 0) {
+                    throw new Error(`更新同步失败：${record.id}`);
+                }
+            }
+        }
+
+        async function updateThenAddOnMiss() {
+            const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
+            throwIfDbError(updateRes);
+            if (getUpdatedCount(updateRes) > 0) return;
+            await addThenUpdateOnDup();
+        }
+
+        return assumeNew ? addThenUpdateOnDup() : updateThenAddOnMiss();
+    }
+
+    async function upsertSettings(db, userId, settings) {
+        await upsertOwnedDoc(db, 'user_settings', userId, {
+            tags: settings.tags,
+            alarmPresets: settings.alarmPresets,
+            theme: settings.theme,
+            updatedAt: settings.updatedAt
+        });
+    }
+
+    async function upsertActiveSession(db, userId, session) {
+        await upsertOwnedDoc(db, 'active_sessions', userId, {
+            startTime: session.startTime,
+            workName: session.workName || '',
+            isActive: session.isActive,
+            updatedAt: session.updatedAt
+        });
+    }
+
     async function pushPendingOps() {
-        const client = Auth.getClient();
+        const db = getDb();
         const userId = Auth.getUserId();
-        if (!client || !userId) return;
+        if (!db || !userId) return { failed: 0 };
 
         const ops = getPendingOps();
-        if (ops.length === 0) return;
+        if (ops.length === 0) return { failed: 0 };
 
+        const recordOps = ops.filter((o) => o.type === 'upsert' || o.type === 'delete');
+        const otherOps = ops.filter((o) => o.type !== 'upsert' && o.type !== 'delete');
         const remaining = [];
 
-        for (const op of ops) {
+        if (recordOps.length > 0) {
+            const records = recordOps.map((op) => op.record);
+            const result = await uploadWorkRecordsBatched(db, records);
+            const failedIds = new Set(result.failed.map((r) => r.id));
+            recordOps.forEach((op) => {
+                if (failedIds.has(op.id)) remaining.push(op);
+            });
+        }
+
+        // settings / active_session / clear_all：量少，顺序处理
+        for (const op of otherOps) {
             try {
-                if (op.type === 'upsert') {
-                    const row = recordToRow(op.record, userId);
-                    const { error } = await client.from('work_records').upsert(row);
-                    if (error) throw error;
-                } else if (op.type === 'delete') {
-                    const { error } = await client.from('work_records').upsert({
-                        id: op.id,
-                        user_id: userId,
-                        start_time: op.record.startTime,
-                        end_time: op.record.endTime,
-                        duration_ms: op.record.duration,
-                        work_name: op.record.workName || '',
-                        updated_at: op.record.updatedAt,
-                        deleted_at: op.record.deletedAt
-                    });
-                    if (error) throw error;
-                } else if (op.type === 'settings') {
-                    const { error } = await client.from('user_settings').upsert({
-                        user_id: userId,
-                        tags: op.settings.tags,
-                        alarm_presets: op.settings.alarmPresets,
-                        theme: op.settings.theme,
-                        updated_at: op.settings.updatedAt
-                    });
-                    if (error) throw error;
+                if (op.type === 'settings') {
+                    await upsertSettings(db, userId, op.settings);
                 } else if (op.type === 'active_session') {
-                    const { error } = await client.from('active_sessions').upsert({
-                        user_id: userId,
-                        start_time: op.session.startTime,
-                        work_name: op.session.workName || '',
-                        is_active: op.session.isActive,
-                        updated_at: op.session.updatedAt
-                    });
-                    if (error) throw error;
+                    await upsertActiveSession(db, userId, op.session);
                 } else if (op.type === 'clear_all') {
-                    const records = op.records || [];
-                    for (const rec of records) {
-                        const row = recordToRow(rec, userId);
-                        const { error } = await client.from('work_records').upsert(row);
-                        if (error) throw error;
+                    const result = await uploadWorkRecordsBatched(db, op.records || []);
+                    if (result.failed.length > 0) {
+                        remaining.push({ ...op, records: result.failed });
                     }
                 }
             } catch (e) {
                 console.error('Push op failed:', op, e);
                 remaining.push(op);
-                continue;
             }
         }
 
         setPendingOps(remaining);
+        return { failed: remaining.length };
     }
 
     async function pullRemoteChanges() {
-        const client = Auth.getClient();
-        const userId = Auth.getUserId();
-        if (!client || !userId) return null;
+        const db = getDb();
+        if (!db) return null;
 
         const lastSynced = getLastSyncedAt();
+        const _ = db.command;
 
-        const { data, error } = await client
-            .from('work_records')
-            .select('*')
-            .eq('user_id', userId)
-            .gt('updated_at', lastSynced)
-            .order('updated_at', { ascending: true });
+        const docs = await fetchAllDocs(db, 'work_records', (query) =>
+            query
+                .where({
+                    _openid: '{openid}',
+                    updatedAt: _.gt(lastSynced)
+                })
+                .orderBy('updatedAt', 'asc')
+        );
 
-        if (error) throw error;
-        return (data || []).map(rowToRecord);
+        return docs.map(docToRecord);
     }
 
     async function pullSettings() {
-        const client = Auth.getClient();
+        const db = getDb();
         const userId = Auth.getUserId();
-        if (!client || !userId) return null;
+        if (!db || !userId) return null;
 
-        const { data, error } = await client
-            .from('user_settings')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!data) return null;
+        const doc = await getOwnedDoc(db, 'user_settings', userId);
+        if (!doc) return null;
 
         return {
-            tags: data.tags,
-            alarmPresets: data.alarm_presets,
-            theme: data.theme,
-            updatedAt: data.updated_at
+            tags: doc.tags,
+            alarmPresets: doc.alarmPresets,
+            theme: doc.theme,
+            updatedAt: doc.updatedAt
         };
     }
 
@@ -256,18 +622,11 @@ const SyncEngine = (function () {
     }
 
     async function getCloudRecordCount() {
-        const client = Auth.getClient();
-        const userId = Auth.getUserId();
-        if (!client || !userId) return 0;
+        const db = getDb();
+        if (!db) return 0;
 
-        const { count, error } = await client
-            .from('work_records')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .is('deleted_at', null);
-
-        if (error) throw error;
-        return count || 0;
+        const ids = await fetchAllCloudRecordIds(db);
+        return ids.size;
     }
 
     function scheduleSync(delayMs = 800) {
@@ -290,13 +649,29 @@ const SyncEngine = (function () {
             if (!isOnline()) setStatus(STATUS.OFFLINE);
             return false;
         }
-        if (syncInProgress) return false;
+        if (syncInProgress) {
+            // 看门狗：正常同步有单请求超时兜底，若仍超过阈值多半是上一轮卡死，强制放行
+            if (Date.now() - syncStartedAt < SYNC_WATCHDOG_MS) return false;
+            console.warn('上一轮同步疑似卡住，强制重置后重试');
+        }
 
         syncInProgress = true;
+        syncStartedAt = Date.now();
         setStatus(STATUS.SYNCING);
 
+        let hasFailure = false;
+
         try {
-            await pushPendingOps();
+            const pushResult = await pushPendingOps();
+            if (pushResult.failed > 0) hasFailure = true;
+
+            const backfillResult = await backfillMissingOnce(getDb());
+            if (backfillResult && backfillResult.failed.length > 0) {
+                hasFailure = true;
+                backfillResult.failed.forEach((record) => {
+                    queueOp({ type: 'upsert', id: record.id, record });
+                });
+            }
 
             const remoteRecords = await pullRemoteChanges();
             if (remoteRecords && remoteRecords.length > 0) {
@@ -312,37 +687,45 @@ const SyncEngine = (function () {
 
             await pullActiveSession();
 
-            setLastSyncedAt(new Date().toISOString());
-            setStatus(STATUS.SYNCED);
+            const pendingLeft = getPendingOps().length;
+            if (pendingLeft === 0 && !hasFailure) {
+                setLastSyncedAt(new Date().toISOString());
+                setStatus(STATUS.SYNCED);
+            } else {
+                setStatus(STATUS.ERROR);
+                console.warn(`同步未完成：待重试 ${pendingLeft} 项`);
+                scheduleSync(3000);
+            }
+
             DataStore.notifyDataChanged();
-            return true;
+            return pendingLeft === 0 && !hasFailure;
         } catch (e) {
             console.error('Sync failed:', e);
             setStatus(STATUS.ERROR);
+            scheduleSync(5000);
             return false;
         } finally {
             syncInProgress = false;
         }
     }
 
-    async function migrateLocalToCloud(strategy) {
+    async function fetchAllActiveRecords(db) {
+        const docs = await fetchAllDocs(db, 'work_records', (query) =>
+            query.where({ _openid: '{openid}' }).orderBy('startTime', 'desc')
+        );
+        return docs.map(docToRecord).filter(isActiveRecord);
+    }
+
+    async function migrateLocalToCloud(strategy, { onProgress } = {}) {
         if (!canSync()) throw new Error('请先登录并确保网络连接');
 
-        const client = Auth.getClient();
+        const db = getDb();
         const userId = Auth.getUserId();
         const localRecords = DataStore.getAllRecordsRaw();
 
         if (strategy === 'cloud') {
-            const remote = await client
-                .from('work_records')
-                .select('*')
-                .eq('user_id', userId)
-                .is('deleted_at', null)
-                .order('start_time', { ascending: false });
-
-            if (remote.error) throw remote.error;
-            const records = (remote.data || []).map(rowToRecord);
-            DataStore.setRecordsInternal(records.filter((r) => !r.deletedAt));
+            const records = await fetchAllActiveRecords(db);
+            DataStore.setRecordsInternal(records);
             setLastSyncedAt(new Date().toISOString());
             setPendingOps([]);
             DataStore.notifyDataChanged();
@@ -351,25 +734,35 @@ const SyncEngine = (function () {
 
         if (strategy === 'local') {
             const normalized = localRecords.map((r) => DataStore.normalizeRecord(r));
-            for (const record of normalized) {
-                const row = recordToRow(record, userId);
-                const { error } = await client.from('work_records').upsert(row);
-                if (error) throw error;
-            }
+            const result = await uploadWorkRecordsBatched(db, normalized, {
+                assumeNew: true,
+                onProgress
+            });
             await DataStore.syncSettingsToCloud();
+            if (result.failed.length > 0) {
+                result.failed.forEach((record) => {
+                    queueOp({ type: 'upsert', id: record.id, record });
+                });
+                throw new Error(`已上传 ${result.uploaded} 条，${result.failed.length} 条失败，将自动重试`);
+            }
             setLastSyncedAt(new Date().toISOString());
             setPendingOps([]);
+            backfillDone = true;
             return normalized.length;
         }
 
-        // merge: upload local then full sync
         const normalized = localRecords.map((r) => DataStore.normalizeRecord(r));
-        for (const record of normalized) {
-            const row = recordToRow(record, userId);
-            const { error } = await client.from('work_records').upsert(row);
-            if (error) throw error;
+        const result = await uploadWorkRecordsBatched(db, normalized, {
+            assumeNew: true,
+            onProgress
+        });
+        if (result.failed.length > 0) {
+            result.failed.forEach((record) => {
+                queueOp({ type: 'upsert', id: record.id, record });
+            });
         }
         setLastSyncedAt('1970-01-01T00:00:00.000Z');
+        backfillDone = true;
         await syncNow();
         return normalized.length;
     }
@@ -404,38 +797,38 @@ const SyncEngine = (function () {
         scheduleSync(300);
     }
 
-    async function pullActiveSession() {
-        const client = Auth.getClient();
-        const userId = Auth.getUserId();
-        if (!client || !userId) return;
-
-        const { data, error } = await client
-            .from('active_sessions')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!data || !data.is_active || !data.start_time) return;
-
+    function isLocalSessionActive() {
         const localRaw = localStorage.getItem(ACTIVE_SESSION_KEY);
-        let localActive = false;
-        if (localRaw) {
-            try {
-                localActive = JSON.parse(localRaw).isActive;
-            } catch (e) {
-                localActive = false;
-            }
+        if (!localRaw) return false;
+        try {
+            return Boolean(JSON.parse(localRaw).isActive);
+        } catch (e) {
+            return false;
         }
+    }
 
-        if (!localActive && remoteActiveSessionHandler) {
-            remoteActiveSessionHandler({
-                startTime: data.start_time,
-                workName: data.work_name || '',
-                isActive: true,
-                updatedAt: data.updated_at
-            });
-        }
+    function notifyRemoteActiveSession(data) {
+        if (!data || !data.isActive || !data.startTime) return;
+        if (isLocalSessionActive()) return;
+        if (!remoteActiveSessionHandler) return;
+
+        remoteActiveSessionHandler({
+            startTime: data.startTime,
+            workName: data.workName || '',
+            isActive: true,
+            updatedAt: data.updatedAt
+        });
+    }
+
+    async function pullActiveSession() {
+        const db = getDb();
+        const userId = Auth.getUserId();
+        if (!db || !userId) return;
+
+        const doc = await getOwnedDoc(db, 'active_sessions', userId);
+        if (!doc) return;
+
+        notifyRemoteActiveSession(doc);
     }
 
     function subscribeActiveSession(onRemoteSession) {
@@ -443,56 +836,34 @@ const SyncEngine = (function () {
 
         if (!APP_CONFIG.isCloudEnabled() || !Auth.isLoggedIn()) return;
 
-        const client = Auth.getClient();
-        const userId = Auth.getUserId();
-        if (!client || !userId) return;
+        const db = getDb();
+        if (!db) return;
 
-        if (realtimeChannel) {
-            client.removeChannel(realtimeChannel);
+        if (activeSessionWatcher) {
+            activeSessionWatcher.close();
+            activeSessionWatcher = null;
         }
 
-        realtimeChannel = client
-            .channel(`active_session:${userId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'active_sessions',
-                    filter: `user_id=eq.${userId}`
+        activeSessionWatcher = db
+            .collection('active_sessions')
+            .where({ _openid: '{openid}' })
+            .watch({
+                onChange(snapshot) {
+                    const docs = snapshot.docs || [];
+                    if (docs.length === 0) return;
+                    notifyRemoteActiveSession(docs[0]);
                 },
-                (payload) => {
-                    const row = payload.new;
-                    if (!row) return;
-                    if (row.is_active && row.start_time) {
-                        const localRaw = localStorage.getItem(ACTIVE_SESSION_KEY);
-                        let localActive = false;
-                        if (localRaw) {
-                            try {
-                                localActive = JSON.parse(localRaw).isActive;
-                            } catch (e) {
-                                localActive = false;
-                            }
-                        }
-                        if (!localActive && remoteActiveSessionHandler) {
-                            remoteActiveSessionHandler({
-                                startTime: row.start_time,
-                                workName: row.work_name || '',
-                                isActive: true,
-                                updatedAt: row.updated_at
-                            });
-                        }
-                    }
+                onError(err) {
+                    console.error('Active session watch error:', err);
                 }
-            )
-            .subscribe();
+            });
     }
 
     function unsubscribeActiveSession() {
         remoteActiveSessionHandler = null;
-        if (realtimeChannel && Auth.getClient()) {
-            Auth.getClient().removeChannel(realtimeChannel);
-            realtimeChannel = null;
+        if (activeSessionWatcher) {
+            activeSessionWatcher.close();
+            activeSessionWatcher = null;
         }
     }
 
@@ -510,9 +881,10 @@ const SyncEngine = (function () {
 
         Auth.onAuthStateChange((user) => {
             if (user) {
-                subscribeActiveSession(remoteActiveSessionHandler);
+                backfillDone = false;
                 scheduleSync(500);
             } else {
+                backfillDone = false;
                 unsubscribeActiveSession();
                 setStatus(STATUS.IDLE);
             }
@@ -532,6 +904,7 @@ const SyncEngine = (function () {
         pushSettings,
         getCloudRecordCount,
         migrateLocalToCloud,
+        onUploadProgress,
         pushActiveSession,
         clearActiveSessionRemote,
         subscribeActiveSession,

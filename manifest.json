@@ -2,7 +2,7 @@
   "name": "工作时间记录器",
   "short_name": "工时记录",
   "description": "简洁美观的工作时间记录工具",
-  "start_url": "/work-time-recorder/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#d4dfe8",
   "theme_color": "#5a9bc4",

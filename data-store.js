@@ -196,13 +196,6 @@ const DataStore = (function () {
     function clearAllRecords() {
         const records = readRawRecords().filter((r) => !r.deletedAt);
         const now = new Date().toISOString();
-        records.forEach((r) => {
-            queueRecordDelete({
-                ...r,
-                deletedAt: now,
-                updatedAt: now
-            });
-        });
         writeRawRecords([]);
         if (Auth.isLoggedIn() && APP_CONFIG.isCloudEnabled()) {
             SyncEngine.queueOp({
@@ -339,8 +332,8 @@ const DataStore = (function () {
         return getAllRecordsRaw().length > 0;
     }
 
-    async function migrateLocalToCloud(strategy) {
-        return SyncEngine.migrateLocalToCloud(strategy);
+    async function migrateLocalToCloud(strategy, options) {
+        return SyncEngine.migrateLocalToCloud(strategy, options);
     }
 
     async function syncNow() {

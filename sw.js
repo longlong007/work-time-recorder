@@ -1,24 +1,46 @@
-const CACHE_NAME = 'work-time-recorder-v2';
+const CACHE_NAME = 'work-time-recorder-v17';
 const urlsToCache = [
-  '/work-time-recorder/',
-  '/work-time-recorder/index.html',
-  '/work-time-recorder/style.css',
-  '/work-time-recorder/config.js',
-  '/work-time-recorder/auth.js',
-  '/work-time-recorder/data-store.js',
-  '/work-time-recorder/sync-engine.js',
-  '/work-time-recorder/cloud-ui.js',
-  '/work-time-recorder/script.js',
-  '/work-time-recorder/manifest.json'
+  '/',
+  '/index.html',
+  '/style.css',
+  '/config.js',
+  '/vendor/cloudbase.js',
+  '/auth.js',
+  '/data-store.js',
+  '/sync-engine.js',
+  '/cloud-ui.js',
+  '/script.js',
+  '/manifest.json'
 ];
+
+const NETWORK_FIRST_PATHS = new Set([
+  '/',
+  '/index.html',
+  '/config.js',
+  '/auth.js',
+  '/cloud-ui.js',
+  '/sync-engine.js',
+  '/data-store.js',
+  '/script.js'
+]);
+
+function shouldUseNetworkFirst(url) {
+  return NETWORK_FIRST_PATHS.has(url.pathname);
+}
+
+async function cacheResponse(request, response) {
+  if (!response || response.status !== 200 || response.type !== 'basic') {
+    return;
+  }
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(request, response.clone());
+}
 
 // 安装事件 - 缓存资源
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
+      .then((cache) => cache.addAll(urlsToCache))
       .then(() => self.skipWaiting())
   );
 });
@@ -32,25 +54,48 @@ self.addEventListener('activate', (event) => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
-        });
+        })
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// 请求拦截 - Stale-While-Revalidate（优先返回缓存，同时后台更新）
+// HTML/JS 走 network-first，避免开发时缓存旧版本
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(event.request).then((cached) => {
-        const fetched = fetch(event.request).then((response) => {
-          if (response && response.status === 200 && response.type === 'basic') {
-            cache.put(event.request, response.clone());
-          }
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (shouldUseNetworkFirst(url)) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          await cacheResponse(event.request, response);
           return response;
-        }).catch(() => cached);
-        return cached || fetched;
-      });
-    })
+        } catch (err) {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          throw err;
+        }
+      })()
+    );
+    return;
+  }
+
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(event.request);
+      try {
+        const response = await fetch(event.request);
+        await cacheResponse(event.request, response);
+        return response;
+      } catch (err) {
+        if (cached) return cached;
+        throw err;
+      }
+    })()
   );
 });

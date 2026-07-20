@@ -6,6 +6,11 @@ desktop.ini
 # 编辑器文件
 .vscode/
 .idea/
+.cursor/
+
+# 本地 CloudBase 配置（含环境 ID，勿提交）
+config.js
+cloudbaserc.json
 *.swp
 *.swo
 *~
@@ -28,3 +33,4 @@ desktop.ini
 # README.md
 
 
+cloudfunctions/**/node_modules/

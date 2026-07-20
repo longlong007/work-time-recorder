@@ -1,6 +1,7 @@
 // 云端同步 UI — 登录、迁移、同步状态
 const CloudUI = (function () {
     let migrationChecked = false;
+    let pendingVerificationInfo = null;
 
     function $(id) {
         return document.getElementById(id);
@@ -76,14 +77,34 @@ const CloudUI = (function () {
     }
 
     function switchAuthTab(mode) {
+        const authModal = $('authModal');
+        const authTitle = $('authTitle');
+        const authSubmitBtn = $('authSubmitBtn');
+        const authConfirmGroup = $('authConfirmGroup');
+        const authCodeGroup = $('authCodeGroup');
+        if (!authModal || !authTitle || !authSubmitBtn) return;
+
         const isLogin = mode === 'login';
-        $('authTitle').textContent = isLogin ? '登录账户' : '注册账户';
-        $('authSubmitBtn').textContent = isLogin ? '登录' : '注册';
-        $('authConfirmGroup').style.display = isLogin ? 'none' : 'block';
-        $('authSwitchText').innerHTML = isLogin
-            ? '还没有账户？<button type="button" class="link-btn" id="authSwitchBtn">立即注册</button>'
-            : '已有账户？<button type="button" class="link-btn" id="authSwitchBtn">去登录</button>';
-        $('authModal').dataset.mode = mode;
+        authTitle.textContent = isLogin ? '登录账户' : '注册账户';
+        authSubmitBtn.textContent = isLogin ? '登录' : '注册';
+        if (authConfirmGroup) {
+            authConfirmGroup.style.display = isLogin ? 'none' : 'block';
+        }
+        if (authCodeGroup) {
+            authCodeGroup.style.display = isLogin ? 'none' : 'block';
+        }
+        if (!isLogin) {
+            pendingVerificationInfo = null;
+            const codeInput = $('authVerificationCode');
+            if (codeInput) codeInput.value = '';
+        }
+        const authSwitchText = $('authSwitchText');
+        if (authSwitchText) {
+            authSwitchText.innerHTML = isLogin
+                ? '还没有账户？<button type="button" class="link-btn" id="authSwitchBtn">立即注册</button>'
+                : '已有账户？<button type="button" class="link-btn" id="authSwitchBtn">去登录</button>';
+        }
+        authModal.dataset.mode = mode;
         bindAuthSwitch();
         showAuthError('');
     }
@@ -97,12 +118,33 @@ const CloudUI = (function () {
         };
     }
 
+    async function sendVerificationCode() {
+        const email = $('authEmail').value.trim();
+        const sendBtn = $('authSendCodeBtn');
+        if (!email) {
+            showAuthError('请先填写邮箱');
+            return;
+        }
+        if (sendBtn) sendBtn.disabled = true;
+        showAuthError('');
+        try {
+            pendingVerificationInfo = await Auth.sendEmailVerificationCode(email);
+            showAuthError('验证码已发送，请查收邮箱（含垃圾箱）');
+        } catch (err) {
+            pendingVerificationInfo = null;
+            showAuthError(Auth.formatAuthError(err));
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+        }
+    }
+
     async function handleAuthSubmit(e) {
         e.preventDefault();
         const mode = $('authModal').dataset.mode || 'login';
         const email = $('authEmail').value.trim();
         const password = $('authPassword').value;
         const confirm = $('authConfirmPassword').value;
+        const verificationCode = $('authVerificationCode') ? $('authVerificationCode').value.trim() : '';
         const submitBtn = $('authSubmitBtn');
 
         if (!email || !password) {
@@ -113,8 +155,17 @@ const CloudUI = (function () {
             showAuthError('两次输入的密码不一致');
             return;
         }
-        if (password.length < 6) {
-            showAuthError('密码至少 6 位');
+        if (password.length < 8) {
+            showAuthError('密码至少 8 位');
+            return;
+        }
+        const pwdError = Auth.validatePassword(password);
+        if (pwdError) {
+            showAuthError(pwdError);
+            return;
+        }
+        if (mode === 'register' && !verificationCode) {
+            showAuthError('请先获取并填写邮箱验证码');
             return;
         }
 
@@ -123,9 +174,14 @@ const CloudUI = (function () {
 
         try {
             if (mode === 'register') {
-                await Auth.signUp(email, password);
-                alert('注册成功！请使用邮箱和密码登录。');
-                switchAuthTab('login');
+                if (!pendingVerificationInfo) {
+                    throw new Error('请先点击「获取验证码」');
+                }
+                await Auth.signUp(email, password, verificationCode, pendingVerificationInfo);
+                pendingVerificationInfo = null;
+                hideModal($('authModal'));
+                $('authForm').reset();
+                await checkMigrationAfterLogin();
             } else {
                 await Auth.signIn(email, password);
                 hideModal($('authModal'));
@@ -133,7 +189,7 @@ const CloudUI = (function () {
                 await checkMigrationAfterLogin();
             }
         } catch (err) {
-            showAuthError(err.message || '操作失败，请重试');
+            showAuthError(Auth.formatAuthError(err));
         } finally {
             submitBtn.disabled = false;
         }
@@ -189,6 +245,7 @@ const CloudUI = (function () {
             localBtn.style.display = 'inline-flex';
         }
         skipBtn.style.display = 'inline-flex';
+        setMigrationProgressVisible(false, 0);
         showModal(modal);
     }
 
@@ -202,11 +259,46 @@ const CloudUI = (function () {
         if (typeof initAlarmPresetButtons === 'function') initAlarmPresetButtons();
     }
 
+    function setMigrationProgressVisible(visible, total) {
+        const progress = $('migrationProgress');
+        const actions = $('migrationActions');
+        const progressText = $('migrationProgressText');
+        const progressBar = $('migrationProgressBar');
+        if (progress) progress.style.display = visible ? 'block' : 'none';
+        if (actions) actions.style.display = visible ? 'none' : 'flex';
+        if (visible && progressText) {
+            progressText.textContent = `上传中 0 / ${total}`;
+        }
+        if (progressBar) progressBar.style.width = '0%';
+    }
+
+    function updateMigrationProgress(done, total) {
+        const progressText = $('migrationProgressText');
+        const progressBar = $('migrationProgressBar');
+        if (progressText) {
+            progressText.textContent = `上传中 ${done} / ${total}`;
+        }
+        if (progressBar && total > 0) {
+            progressBar.style.width = `${Math.round((done / total) * 100)}%`;
+        }
+    }
+
     async function runMigration(strategy) {
         const modal = $('migrationModal');
+        const needsUpload = strategy === 'local' || strategy === 'merge';
+        const total = needsUpload ? DataStore.getAllRecordsRaw().length : 0;
+
+        if (needsUpload && total > 0) {
+            setMigrationProgressVisible(true, total);
+            updateSyncStatus(SyncEngine.STATUS.SYNCING);
+        }
+
         try {
-            const count = await DataStore.migrateLocalToCloud(strategy);
+            const count = await DataStore.migrateLocalToCloud(strategy, {
+                onProgress: updateMigrationProgress
+            });
             hideModal(modal);
+            setMigrationProgressVisible(false, 0);
             let msg = '数据同步完成';
             if (strategy === 'merge') msg = '已合并本地与云端数据';
             else if (strategy === 'cloud') msg = '已使用云端数据覆盖本地';
@@ -215,6 +307,7 @@ const CloudUI = (function () {
             alert(msg);
             refreshAppData();
         } catch (e) {
+            setMigrationProgressVisible(false, 0);
             alert('迁移失败：' + (e.message || '未知错误'));
         }
     }
@@ -230,6 +323,9 @@ const CloudUI = (function () {
             updateAccountBar(null);
             return;
         }
+
+        updateAccountBar(Auth.getUser());
+        updateSyncStatus(SyncEngine.getStatus());
 
         Auth.onAuthStateChange(async (user) => {
             updateAccountBar(user);
@@ -249,6 +345,7 @@ const CloudUI = (function () {
         const logoutBtn = $('logoutBtn');
         const closeAuthBtn = $('closeAuthModalBtn');
         const authForm = $('authForm');
+        const authSendCodeBtn = $('authSendCodeBtn');
         const syncNowBtn = $('syncNowBtn');
         const migrationUploadBtn = $('migrationUploadBtn');
         const migrationMergeBtn = $('migrationMergeBtn');
@@ -282,6 +379,10 @@ const CloudUI = (function () {
 
         if (authForm) {
             authForm.addEventListener('submit', handleAuthSubmit);
+        }
+
+        if (authSendCodeBtn) {
+            authSendCodeBtn.addEventListener('click', sendVerificationCode);
         }
 
         if (syncNowBtn) {
@@ -319,7 +420,6 @@ const CloudUI = (function () {
         });
 
         switchAuthTab('login');
-        updateSyncStatus(SyncEngine.getStatus());
     }
 
     return { init, refreshAppData, checkMigrationAfterLogin };

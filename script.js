@@ -133,7 +133,7 @@ function initMoreSettings() {
 // ==================== PWA 注册 ====================
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/work-time-recorder/sw.js')
+        navigator.serviceWorker.register('/sw.js')
             .then(() => console.log('Service Worker 注册成功'))
             .catch((err) => console.log('Service Worker 注册失败:', err));
     }

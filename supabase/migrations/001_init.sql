@@ -1,4 +1,7 @@
--- 工作时间记录器 — Supabase 初始化 Schema
+-- 已废弃：本项目已迁移至腾讯云 CloudBase
+-- 请参阅 cloudbase/schema.md 与 cloudbase/SETUP.md
+--
+-- 工作时间记录器 — Supabase 初始化 Schema（历史参考）
 -- 在 Supabase Dashboard → SQL Editor 中执行此文件
 
 -- 工时记录
