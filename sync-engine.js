@@ -9,6 +9,7 @@ const SyncEngine = (function () {
     const UPLOAD_CONCURRENCY = 4;
     const REQUEST_TIMEOUT_MS = 15000;
     const SYNC_WATCHDOG_MS = 90000;
+    const CLEARED_SESSION_IGNORE_MS = 60000;
     const CLOUD_BATCH_SIZE = 100;
     const CLOUD_BATCH_THRESHOLD = 5;
 
@@ -31,6 +32,8 @@ const SyncEngine = (function () {
     // 补传（全量差集）仅在每次登录会话首次同步时做一次，之后靠 pending 队列增量
     let backfillDone = false;
     let uploadProgressListeners = [];
+    // 本机刚结束的计时：忽略云端残留 active_session，避免误报「另一台设备正在计时」
+    let recentlyClearedActiveSession = null;
 
     function setStatus(next) {
         status = next;
@@ -775,7 +778,26 @@ const SyncEngine = (function () {
                 updatedAt: new Date().toISOString()
             }
         });
-        scheduleSync(300);
+        scheduleSync(0);
+    }
+
+    function markActiveSessionCleared(session) {
+        if (!session || !session.startTime) return;
+        recentlyClearedActiveSession = {
+            startTime: session.startTime,
+            workName: session.workName || '',
+            at: Date.now()
+        };
+    }
+
+    function shouldIgnoreRemoteActiveSession(data) {
+        if (!recentlyClearedActiveSession) return false;
+        const { startTime, workName, at } = recentlyClearedActiveSession;
+        if (Date.now() - at > CLEARED_SESSION_IGNORE_MS) {
+            recentlyClearedActiveSession = null;
+            return false;
+        }
+        return data.startTime === startTime && (data.workName || '') === workName;
     }
 
     function isLocalSessionActive() {
@@ -791,6 +813,7 @@ const SyncEngine = (function () {
     function notifyRemoteActiveSession(data) {
         if (!data || !data.isActive || !data.startTime) return;
         if (isLocalSessionActive()) return;
+        if (shouldIgnoreRemoteActiveSession(data)) return;
         if (!remoteActiveSessionHandler) return;
 
         remoteActiveSessionHandler({
@@ -888,6 +911,7 @@ const SyncEngine = (function () {
         onUploadProgress,
         pushActiveSession,
         clearActiveSessionRemote,
+        markActiveSessionCleared,
         subscribeActiveSession,
         unsubscribeActiveSession,
         getPendingOps

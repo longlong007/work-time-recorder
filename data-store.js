@@ -324,6 +324,10 @@ const DataStore = (function () {
     }
 
     function clearCurrentRecord() {
+        const current = getCurrentRecord();
+        if (current.isActive && current.startTime) {
+            SyncEngine.markActiveSessionCleared(current);
+        }
         localStorage.removeItem(CURRENT_RECORD_KEY);
         SyncEngine.clearActiveSessionRemote();
     }
