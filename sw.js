@@ -1,4 +1,4 @@
-const CACHE_NAME = 'work-time-recorder-v18';
+const CACHE_NAME = 'work-time-recorder-v19';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -16,6 +16,7 @@ const urlsToCache = [
 const NETWORK_FIRST_PATHS = new Set([
   '/',
   '/index.html',
+  '/style.css',
   '/config.js',
   '/auth.js',
   '/cloud-ui.js',
