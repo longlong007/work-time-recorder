@@ -65,6 +65,7 @@ const alarmOptions = document.getElementById('alarmOptions');
 const customAlarmMinutes = document.getElementById('customAlarmMinutes');
 const setAlarmBtn = document.getElementById('setAlarmBtn');
 const alarmStatus = document.getElementById('alarmStatus');
+const alarmHeaderBadge = document.getElementById('alarmHeaderBadge');
 const alarmModal = document.getElementById('alarmModal');
 const continueAlarmBtn = document.getElementById('continueAlarmBtn');
 const endAlarmBtn = document.getElementById('endAlarmBtn');
@@ -1380,6 +1381,22 @@ function showAlarmNotification() {
     }
 }
 
+// 更新标题行闹钟状态徽章
+function updateAlarmHeaderBadge() {
+    if (!alarmHeaderBadge) return;
+    if (alarmEnabled && alarmMinutes > 0) {
+        alarmHeaderBadge.textContent = `${alarmMinutes}分钟 ✓`;
+        alarmHeaderBadge.hidden = false;
+        alarmHeaderBadge.classList.remove('updated');
+        void alarmHeaderBadge.offsetWidth;
+        alarmHeaderBadge.classList.add('updated');
+    } else {
+        alarmHeaderBadge.hidden = true;
+        alarmHeaderBadge.textContent = '';
+        alarmHeaderBadge.classList.remove('updated');
+    }
+}
+
 // 切换闹钟开关
 function toggleAlarm() {
     alarmEnabled = alarmToggle.checked;
@@ -1390,16 +1407,16 @@ function toggleAlarm() {
         alarmOptions.classList.remove('active');
         clearAlarmTimer();
         releaseAlarmAudio();
-        alarmStatus.textContent = '';
         alarmMinutes = 0;
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
     }
+    updateAlarmHeaderBadge();
 }
 
 // 设置闹钟时长
 function setAlarmMinutes(minutes) {
     alarmMinutes = minutes;
-    alarmStatus.textContent = `已设置 ${minutes} 分钟闹钟`;
-    alarmStatus.classList.add('set');
+    updateAlarmHeaderBadge();
     unlockAlarmAudio();
     if (currentRecord.isActive) {
         startAlarmTimer();

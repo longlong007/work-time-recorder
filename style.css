@@ -1136,7 +1136,36 @@ body {
     font-size: 14px;
     font-weight: 600;
     color: #4a7ea6;
+}
+
+.alarm-header-badge {
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    margin: 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-on-primary);
+    background: var(--semantic-primary-gradient);
+    border-radius: 20px;
+    box-shadow: var(--semantic-primary-shadow);
+    white-space: nowrap;
+}
+
+.alarm-header-badge[hidden] {
+    display: none;
+}
+
+.alarm-header-badge.updated {
+    animation: alarmBadgePop 0.4s ease;
+}
+
+@keyframes alarmBadgePop {
+    0%   { transform: scale(0.85); opacity: 0.6; }
+    50%  { transform: scale(1.08); }
+    100% { transform: scale(1);   opacity: 1; }
 }
 
 .reminder-options {
@@ -1364,22 +1393,9 @@ body {
     border-radius: 20px;
 }
 
-/* 闹钟状态 */
+/* 闹钟状态（已移至标题行徽章，保留 DOM 供兼容） */
 .alarm-status {
-    font-size: 0.85em;
-    color: #3d8ab8;
-    font-weight: 500;
-    padding: 8px 14px;
-    background: linear-gradient(135deg, #e8f5ff 0%, #dcf0ff 100%);
-    border-radius: 20px;
     display: none;
-    margin-top: 6px;
-}
-
-.alarm-status.set {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }
 
 /* 闹钟提醒弹窗 */
@@ -1976,7 +1992,7 @@ body {
     .custom-alarm        { gap: 5px; margin-top: 2px; }
     .custom-alarm-input  { width: 60px; padding: 5px 8px; font-size: 12px; }
     .custom-alarm-unit   { font-size: 12px; }
-    .alarm-status        { padding: 4px 10px; font-size: 11px; margin-top: 3px; }
+    .alarm-header-badge { font-size: 12px; padding: 3px 10px; margin: 0 6px; }
 
     .notify-row    { margin-top: 3px; gap: 6px; }
     .notify-status { font-size: 11px; }
