@@ -16,13 +16,26 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo ">>> 同步文件到 $REMOTE:$REMOTE_DIR"
+RSYNC_EXCLUDES=(
+  --exclude '.git'
+  --exclude '.github'
+  --exclude '.cursor'
+  --exclude '.vscode'
+  --exclude '.specstory'
+  --exclude '.worktrees'
+  --exclude '.cursorindexingignore'
+  --exclude 'node_modules'
+  --exclude 'cloudfunctions'
+  --exclude 'docs'
+  --exclude 'supabase'
+  --exclude 'deploy'
+  --exclude 'config.js'
+  --exclude 'cloudbaserc.json'
+)
+
+echo ">>> 同步文件到 ${REMOTE}:${REMOTE_DIR}"
 rsync -avz --delete \
-  --exclude '.git' \
-  --exclude '.cursor' \
-  --exclude '.worktrees' \
-  --exclude 'node_modules' \
-  --exclude 'config.js' \
+  "${RSYNC_EXCLUDES[@]}" \
   "$ROOT/" "$REMOTE:$REMOTE_DIR/"
 
 echo ""
@@ -48,7 +61,7 @@ echo ""
 echo ">>> 部署完成"
 echo "请确保服务器上："
 echo "  1. config.js 已手动配置 CLOUDBASE_ENV"
-echo "  2. Nginx 已按 deploy/nginx.conf 配置（域名: $DOMAIN）"
-echo "  3. CloudBase 安全域名已加入 https://$DOMAIN"
+echo "  2. Nginx 已按 deploy/nginx.conf 配置 (域名: ${DOMAIN})"
+echo "  3. CloudBase 安全域名已加入 https://${DOMAIN}"
 echo ""
-echo "验证: curl -I https://$DOMAIN/"
+echo "验证: curl -I https://${DOMAIN}/"

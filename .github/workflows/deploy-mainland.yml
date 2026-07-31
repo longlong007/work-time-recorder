@@ -1,0 +1,60 @@
+name: Deploy Mainland
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.specstory/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-mainland
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [[ -z "$SSH_PRIVATE_KEY" || -z "$DEPLOY_HOST" ]]; then
+            echo "缺少 GitHub Secrets: SSH_PRIVATE_KEY 或 DEPLOY_HOST"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy to server
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+          SSH_AUTH_SOCK: ""
+        run: |
+          REMOTE="${DEPLOY_USER:-root}@${DEPLOY_HOST}"
+          DOMAIN="${DEPLOY_DOMAIN:-flytime.cloud}"
+          export RSYNC_RSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes"
+          ./deploy/deploy-mainland.sh "$REMOTE" "$DOMAIN"
+
+      - name: Verify deployment
+        env:
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+        run: |
+          DOMAIN="${DEPLOY_DOMAIN:-flytime.cloud}"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://${DOMAIN}/")
+          if [[ "$STATUS" != "200" ]]; then
+            echo "部署验证失败: https://${DOMAIN}/ 返回 HTTP ${STATUS}"
+            exit 1
+          fi
+          echo "部署验证通过: https://${DOMAIN}/"
