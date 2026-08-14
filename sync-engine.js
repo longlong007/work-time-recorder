@@ -272,15 +272,27 @@ const SyncEngine = (function () {
     async function uploadWorkRecordsViaCloudFunction(records, { assumeNew = false, onProgress } = {}) {
         const failed = [];
         let uploaded = 0;
+        let networkFailure = false;
         const total = records.length;
         const fnName = getBatchFunctionName();
 
         for (let i = 0; i < records.length; i += CLOUD_BATCH_SIZE) {
             const chunk = records.slice(i, i + CLOUD_BATCH_SIZE);
-            const result = await Auth.callFunction(fnName, {
-                records: chunk.map(recordPayloadForCloud),
-                assumeNew
-            });
+            let result;
+            try {
+                result = await withTimeout(
+                    Auth.callFunction(fnName, {
+                        records: chunk.map(recordPayloadForCloud),
+                        assumeNew
+                    }),
+                    'callFunction'
+                );
+            } catch (e) {
+                console.error('Cloud function batch upload failed:', e);
+                if (isLikelyNetworkError(e)) networkFailure = true;
+                chunk.forEach((record) => failed.push(record));
+                continue;
+            }
 
             if (!result || result.ok === false) {
                 throw new Error((result && result.error) || '云函数批量上传失败');
@@ -299,14 +311,15 @@ const SyncEngine = (function () {
             if (onProgress) onProgress(done, total);
         }
 
-        return { uploaded, failed };
+        return { uploaded, failed, networkFailure };
     }
 
     async function uploadWorkRecordsClient(db, records, { assumeNew = false, onProgress } = {}) {
         const failed = [];
         let uploaded = 0;
+        let networkFailure = false;
         const total = records.length;
-        if (!records || records.length === 0) return { uploaded, failed };
+        if (!records || records.length === 0) return { uploaded, failed, networkFailure };
 
         const results = await runPool(
             records,
@@ -316,7 +329,7 @@ const SyncEngine = (function () {
                     return { ok: true };
                 } catch (e) {
                     console.error('Upload record failed:', record.id, e);
-                    return { ok: false, record };
+                    return { ok: false, record, networkFailure: isLikelyNetworkError(e) };
                 }
             },
             UPLOAD_CONCURRENCY
@@ -324,23 +337,29 @@ const SyncEngine = (function () {
 
         results.forEach((r, index) => {
             if (r.ok) uploaded += 1;
-            else failed.push(r.record);
+            else {
+                failed.push(r.record);
+                if (r.networkFailure) networkFailure = true;
+            }
             const done = index + 1;
             notifyUploadProgress(done, total);
             if (onProgress) onProgress(done, total);
         });
 
-        return { uploaded, failed };
+        return { uploaded, failed, networkFailure };
     }
 
     async function uploadWorkRecordsBatched(db, records, { assumeNew = false, onProgress } = {}) {
-        if (!records || records.length === 0) return { uploaded: 0, failed: [] };
+        if (!records || records.length === 0) return { uploaded: 0, failed: [], networkFailure: false };
 
         if (shouldUseCloudBatch(records)) {
             try {
                 return await uploadWorkRecordsViaCloudFunction(records, { assumeNew, onProgress });
             } catch (e) {
                 console.warn('云函数批量上传不可用，回退逐条模式:', e.message || e);
+                if (isLikelyNetworkError(e)) {
+                    return { uploaded: 0, failed: records.slice(), networkFailure: true };
+                }
             }
         }
 
@@ -528,18 +547,20 @@ const SyncEngine = (function () {
     async function pushPendingOps() {
         const db = getDb();
         const userId = Auth.getUserId();
-        if (!db || !userId) return { failed: 0 };
+        if (!db || !userId) return { failed: 0, networkFailure: false };
 
         const ops = getPendingOps();
-        if (ops.length === 0) return { failed: 0 };
+        if (ops.length === 0) return { failed: 0, networkFailure: false };
 
         const recordOps = ops.filter((o) => o.type === 'upsert' || o.type === 'delete');
         const otherOps = ops.filter((o) => o.type !== 'upsert' && o.type !== 'delete');
         const remaining = [];
+        let networkFailure = false;
 
         if (recordOps.length > 0) {
             const records = recordOps.map((op) => op.record);
             const result = await uploadWorkRecordsBatched(db, records);
+            if (result.networkFailure) networkFailure = true;
             const failedIds = new Set(result.failed.map((r) => r.id));
             recordOps.forEach((op) => {
                 if (failedIds.has(op.id)) remaining.push(op);
@@ -555,18 +576,20 @@ const SyncEngine = (function () {
                     await upsertActiveSession(db, userId, op.session);
                 } else if (op.type === 'clear_all') {
                     const result = await uploadWorkRecordsBatched(db, op.records || []);
+                    if (result.networkFailure) networkFailure = true;
                     if (result.failed.length > 0) {
                         remaining.push({ ...op, records: result.failed });
                     }
                 }
             } catch (e) {
                 console.error('Push op failed:', op, e);
+                if (isLikelyNetworkError(e)) networkFailure = true;
                 remaining.push(op);
             }
         }
 
         setPendingOps(remaining);
-        return { failed: remaining.length };
+        return { failed: remaining.length, networkFailure };
     }
 
     async function pullRemoteChanges() {
@@ -653,14 +676,17 @@ const SyncEngine = (function () {
         setStatus(STATUS.SYNCING);
 
         let hasFailure = false;
+        let networkFailure = false;
 
         try {
             const pushResult = await pushPendingOps();
             if (pushResult.failed > 0) hasFailure = true;
+            if (pushResult.networkFailure) networkFailure = true;
 
             const backfillResult = await backfillMissingOnce(getDb());
             if (backfillResult && backfillResult.failed.length > 0) {
                 hasFailure = true;
+                if (backfillResult.networkFailure) networkFailure = true;
                 backfillResult.failed.forEach((record) => {
                     queueOp({ type: 'upsert', id: record.id, record });
                 });
@@ -685,7 +711,7 @@ const SyncEngine = (function () {
                 setLastSyncedAt(new Date().toISOString());
                 setStatus(STATUS.SYNCED);
             } else {
-                setStatus(STATUS.ERROR);
+                setStatus(networkFailure ? STATUS.OFFLINE : STATUS.ERROR);
                 console.warn(`同步未完成：待重试 ${pendingLeft} 项`);
                 scheduleSync(3000);
             }

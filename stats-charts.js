@@ -53,16 +53,53 @@ const StatsCharts = (function () {
         render();
     }
 
-    function navigate(direction) {
-        const d = new Date(anchorDate);
-        if (period === 'week') {
-            d.setDate(d.getDate() + direction * 7);
-        } else if (period === 'month') {
-            d.setMonth(d.getMonth() + direction);
-        } else {
-            d.setFullYear(d.getFullYear() + direction);
+    function getRecordDuration(record) {
+        if (typeof record.duration === 'number' && record.duration > 0) {
+            return record.duration;
         }
-        anchorDate = d;
+        if (record.startTime && record.endTime) {
+            const ms = new Date(record.endTime) - new Date(record.startTime);
+            return ms > 0 ? ms : 0;
+        }
+        return 0;
+    }
+
+    function getPeriodBounds(periodType, anchor) {
+        if (periodType === 'week') {
+            const start = startOfDay(getWeekStart(anchor));
+            const end = new Date(start);
+            end.setDate(end.getDate() + 7);
+            return { start, end };
+        }
+        if (periodType === 'month') {
+            const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+            const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
+            return { start, end };
+        }
+        const start = new Date(anchor.getFullYear(), 0, 1);
+        const end = new Date(anchor.getFullYear() + 1, 0, 1);
+        return { start, end };
+    }
+
+    function isInPeriod(recordDate, bounds) {
+        const t = recordDate.getTime();
+        return t >= bounds.start.getTime() && t < bounds.end.getTime();
+    }
+
+    function shiftAnchorDate(direction) {
+        if (period === 'week') {
+            const d = new Date(anchorDate);
+            d.setDate(d.getDate() + direction * 7);
+            return d;
+        }
+        if (period === 'month') {
+            return new Date(anchorDate.getFullYear(), anchorDate.getMonth() + direction, 1);
+        }
+        return new Date(anchorDate.getFullYear() + direction, 0, 1);
+    }
+
+    function navigate(direction) {
+        anchorDate = shiftAnchorDate(direction);
         updatePeriodLabel();
         updateTotal();
         render();
@@ -92,10 +129,6 @@ const StatsCharts = (function () {
             a.getMonth() === b.getMonth() &&
             a.getDate() === b.getDate()
         );
-    }
-
-    function isSameMonth(a, b) {
-        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
     }
 
     function formatShortDate(date) {
@@ -142,9 +175,10 @@ const StatsCharts = (function () {
         const buckets = [];
         const now = new Date();
         const today = startOfDay(now);
+        const bounds = getPeriodBounds(period, anchorDate);
 
         if (period === 'week') {
-            const weekStart = getWeekStart(anchorDate);
+            const weekStart = bounds.start;
             for (let i = 0; i < 7; i++) {
                 const day = new Date(weekStart);
                 day.setDate(day.getDate() + i);
@@ -185,18 +219,20 @@ const StatsCharts = (function () {
 
         records.forEach((record) => {
             const recordDate = new Date(record.startTime);
-            const duration = record.duration || 0;
+            if (Number.isNaN(recordDate.getTime())) return;
+
+            const duration = getRecordDuration(record);
+            if (duration <= 0) return;
+            if (!isInPeriod(recordDate, bounds)) return;
 
             if (period === 'week') {
                 buckets.forEach((bucket) => {
                     if (isSameDay(recordDate, bucket.date)) bucket.ms += duration;
                 });
             } else if (period === 'month') {
-                if (!isSameMonth(recordDate, anchorDate)) return;
                 const dayIndex = recordDate.getDate() - 1;
                 if (buckets[dayIndex]) buckets[dayIndex].ms += duration;
             } else {
-                if (recordDate.getFullYear() !== anchorDate.getFullYear()) return;
                 buckets[recordDate.getMonth()].ms += duration;
             }
         });

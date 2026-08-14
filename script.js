@@ -530,20 +530,23 @@ function updateStatistics() {
     let monthTotalMs = 0;
     
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     records.forEach(record => {
         const recordDate = new Date(record.startTime);
         const duration = record.duration;
         
-        if (recordDate >= todayStart) {
+        if (recordDate >= todayStart && recordDate < new Date(todayStart.getTime() + 86400000)) {
             todayTotalMs += duration;
         }
         
-        if (recordDate >= weekStart) {
+        if (recordDate >= weekStart && recordDate < weekEnd) {
             weekTotalMs += duration;
         }
 
-        if (recordDate >= monthStart) {
+        if (recordDate >= monthStart && recordDate < monthEnd) {
             monthTotalMs += duration;
         }
     });
