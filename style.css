@@ -1550,6 +1550,80 @@ body {
     flex-wrap: wrap;
 }
 
+/* 右栏页面切换 */
+.right-panel-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+.right-panel-tab {
+    flex: 1;
+    border: none;
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.right-panel-tab:hover {
+    color: var(--primary-solid);
+}
+
+.right-panel-tab.active {
+    background: var(--primary-solid);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(90, 155, 196, 0.3);
+}
+
+.right-panel {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.right-panel.active {
+    display: flex;
+}
+
+.right-panel-stats {
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.right-panel-stats .statistics-section {
+    flex-shrink: 0;
+}
+
+.right-panel-stats .stats-chart-section {
+    flex: 1;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.right-panel-stats .stats-chart-container {
+    flex: 1;
+    min-height: 180px;
+    height: auto;
+}
+
+[data-theme="dark"] .right-panel-tab {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .right-panel-tab.active {
+    background: var(--primary-solid);
+    color: #fff;
+}
+
 /* 历史记录区域 */
 .history-section {
     margin-bottom: 12px;
@@ -1745,6 +1819,160 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* 工时柱状图 */
+.stats-chart-section {
+    margin-top: 8px;
+    padding: 12px;
+    background: linear-gradient(135deg, #e4eef5 0%, #dae8f2 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(90, 155, 196, 0.1);
+    flex-shrink: 0;
+}
+
+.stats-chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.stats-period-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.stats-period-tab {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.stats-period-tab:hover {
+    color: var(--primary-solid);
+}
+
+.stats-period-tab.active {
+    background: var(--primary-solid);
+    color: #fff;
+}
+
+.stats-chart-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stats-nav-btn {
+    border: none;
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--primary-solid);
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+
+.stats-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.stats-chart-period-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 120px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.stats-chart-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+}
+
+.stats-chart-total-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.stats-chart-total-value {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, #5a9bc4 0%, #3d8ab8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.stats-chart-container {
+    position: relative;
+    height: 160px;
+}
+
+.stats-chart-container canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.stats-chart-tooltip {
+    display: none;
+    position: absolute;
+    pointer-events: none;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 50, 0.92);
+    color: #e5e5e5;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 10;
+}
+
+[data-theme="dark"] .statistics-section,
+[data-theme="dark"] .stats-chart-section {
+    background: linear-gradient(135deg, #2a2a3a 0%, #252535 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .statistics-section .stat-item,
+[data-theme="dark"] .stats-chart-total-row,
+[data-theme="dark"] .stats-period-tabs,
+[data-theme="dark"] .stats-nav-btn {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .stats-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .stats-period-tab.active {
+    background: var(--primary-solid);
+    color: #fff;
+}
+
 /* 滚动条样式 */
 .history-list::-webkit-scrollbar {
     width: 8px;
@@ -1794,6 +2022,19 @@ body {
     .statistics-section {
         grid-template-columns: 1fr;
         gap: 6px;
+    }
+
+    .stats-chart-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .stats-chart-nav {
+        justify-content: center;
+    }
+
+    .stats-chart-container {
+        height: 140px;
     }
 
     .history-header {
@@ -2012,7 +2253,7 @@ body {
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        margin-bottom: 8px;
+        margin-bottom: 0;
     }
 
     .layout-right .history-list {
@@ -2044,5 +2285,9 @@ body {
 
     .layout-right .statistics-section .stat-value {
         font-size: 15px;
+    }
+
+    .layout-right .right-panel-stats .stats-chart-container {
+        min-height: 240px;
     }
 }

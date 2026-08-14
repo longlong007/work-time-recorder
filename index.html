@@ -159,6 +159,12 @@
                 <!-- 右栏：历史记录 + 统计 -->
                 <div class="layout-right">
 
+                    <div class="right-panel-tabs">
+                        <button type="button" class="right-panel-tab active" data-view="history">📋 历史记录</button>
+                        <button type="button" class="right-panel-tab" data-view="stats">📊 统计</button>
+                    </div>
+
+                    <div class="right-panel right-panel-history active" id="rightPanelHistory">
                     <!-- 历史记录列表 -->
                     <div class="history-section">
                         <div class="history-header">
@@ -183,7 +189,9 @@
                             <div class="empty-state">暂无记录</div>
                         </div>
                     </div>
+                    </div><!-- /rightPanelHistory -->
 
+                    <div class="right-panel right-panel-stats" id="rightPanelStats">
                     <!-- 统计区域 -->
                     <div class="statistics-section" id="statistics">
                         <div class="stat-item">
@@ -199,6 +207,31 @@
                             <span class="stat-value" id="monthTotal">00:00:00</span>
                         </div>
                     </div>
+
+                    <!-- 工时柱状图 -->
+                    <div class="stats-chart-section" id="statsChartSection">
+                        <div class="stats-chart-toolbar">
+                            <div class="stats-period-tabs">
+                                <button type="button" class="stats-period-tab active" data-period="week">周</button>
+                                <button type="button" class="stats-period-tab" data-period="month">月</button>
+                                <button type="button" class="stats-period-tab" data-period="year">年</button>
+                            </div>
+                            <div class="stats-chart-nav">
+                                <button type="button" class="stats-nav-btn" id="statsChartPrev" aria-label="上一期">‹</button>
+                                <span class="stats-chart-period-label" id="statsChartPeriodLabel"></span>
+                                <button type="button" class="stats-nav-btn" id="statsChartNext" aria-label="下一期">›</button>
+                            </div>
+                        </div>
+                        <div class="stats-chart-total-row">
+                            <span class="stats-chart-total-label">时段合计</span>
+                            <span class="stats-chart-total-value" id="statsChartTotal">00:00:00</span>
+                        </div>
+                        <div class="stats-chart-container">
+                            <canvas id="workTimeChart"></canvas>
+                            <div class="stats-chart-tooltip" id="statsChartTooltip"></div>
+                        </div>
+                    </div>
+                    </div><!-- /rightPanelStats -->
 
                 </div><!-- /layout-right -->
 
@@ -383,6 +416,7 @@
     <script src="data-store.js?v=20260720c"></script>
     <script src="sync-engine.js?v=20260720c"></script>
     <script src="cloud-ui.js?v=20260720c"></script>
+    <script src="stats-charts.js?v=20260814"></script>
     <script src="script.js?v=20260713d"></script>
 </body>
 </html>

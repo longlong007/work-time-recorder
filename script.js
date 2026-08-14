@@ -106,6 +106,8 @@ function init() {
     initMoreSettings();
     initTheme();
     registerServiceWorker();
+    initRightPanelView();
+    if (typeof StatsCharts !== 'undefined') StatsCharts.init();
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
@@ -549,6 +551,8 @@ function updateStatistics() {
     todayTotal.textContent = formatDuration(todayTotalMs);
     weekTotal.textContent = formatDuration(weekTotalMs);
     monthTotal.textContent = formatDuration(monthTotalMs);
+
+    if (typeof StatsCharts !== 'undefined') StatsCharts.refresh();
 }
 
 // 删除单条记录（支持 id 或 startTime）
@@ -850,11 +854,52 @@ function toggleTheme() {
         DataStore.saveTheme('dark');
         themeToggle.textContent = '☀️';
     }
+
+    if (typeof StatsCharts !== 'undefined') StatsCharts.refresh();
 }
 
 // 绑定主题切换按钮事件
 if (themeToggle) {
     themeToggle.addEventListener('click', toggleTheme);
+}
+
+// ==================== 右栏页面切换 ====================
+
+const RIGHT_PANEL_VIEW_KEY = 'rightPanelView';
+
+function initRightPanelView() {
+    const tabs = document.querySelectorAll('.right-panel-tab');
+    const panels = {
+        history: document.getElementById('rightPanelHistory'),
+        stats: document.getElementById('rightPanelStats'),
+    };
+    if (!tabs.length || !panels.history || !panels.stats) return;
+
+    const savedView = localStorage.getItem(RIGHT_PANEL_VIEW_KEY);
+    if (savedView === 'stats') {
+        switchRightPanelView('stats', tabs, panels);
+    }
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const view = tab.dataset.view;
+            if (!view || tab.classList.contains('active')) return;
+            switchRightPanelView(view, tabs, panels);
+            localStorage.setItem(RIGHT_PANEL_VIEW_KEY, view);
+        });
+    });
+}
+
+function switchRightPanelView(view, tabs, panels) {
+    tabs.forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.view === view);
+    });
+    Object.entries(panels).forEach(([key, panel]) => {
+        panel.classList.toggle('active', key === view);
+    });
+    if (view === 'stats' && typeof StatsCharts !== 'undefined') {
+        requestAnimationFrame(() => StatsCharts.refresh());
+    }
 }
 
 // ==================== 日期工具函数 ====================
