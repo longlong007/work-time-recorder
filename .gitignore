@@ -34,3 +34,5 @@ cloudbaserc.json
 
 
 cloudfunctions/**/node_modules/
+
+.specstory/**

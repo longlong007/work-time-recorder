@@ -63,8 +63,15 @@ const SyncEngine = (function () {
         return navigator.onLine;
     }
 
+    // 不依赖 navigator.onLine：PWA/部分浏览器会误报 offline，但 CloudBase WebSocket 仍可用
     function canSync() {
-        return APP_CONFIG.isCloudEnabled() && Auth.isLoggedIn() && isOnline();
+        return APP_CONFIG.isCloudEnabled() && Auth.isLoggedIn();
+    }
+
+    function isLikelyNetworkError(e) {
+        if (!navigator.onLine) return true;
+        const text = errorText(e).toLowerCase();
+        return /network|fetch|timeout|超时|failed to fetch|net::|econnrefused|websocket|offline/i.test(text);
     }
 
     function getDb() {
@@ -614,14 +621,12 @@ const SyncEngine = (function () {
     }
 
     function scheduleSync(delayMs = 800) {
-        if (!canSync()) {
-            if (!APP_CONFIG.isCloudEnabled()) {
-                setStatus(STATUS.NOT_CONFIGURED);
-            } else if (!Auth.isLoggedIn()) {
-                setStatus(STATUS.IDLE);
-            } else {
-                setStatus(STATUS.OFFLINE);
-            }
+        if (!APP_CONFIG.isCloudEnabled()) {
+            setStatus(STATUS.NOT_CONFIGURED);
+            return;
+        }
+        if (!Auth.isLoggedIn()) {
+            setStatus(STATUS.IDLE);
             return;
         }
         clearTimeout(syncDebounceTimer);
@@ -629,8 +634,12 @@ const SyncEngine = (function () {
     }
 
     async function syncNow() {
-        if (!canSync()) {
-            if (!isOnline()) setStatus(STATUS.OFFLINE);
+        if (!APP_CONFIG.isCloudEnabled()) {
+            setStatus(STATUS.NOT_CONFIGURED);
+            return false;
+        }
+        if (!Auth.isLoggedIn()) {
+            setStatus(STATUS.IDLE);
             return false;
         }
         if (syncInProgress) {
@@ -685,7 +694,7 @@ const SyncEngine = (function () {
             return pendingLeft === 0 && !hasFailure;
         } catch (e) {
             console.error('Sync failed:', e);
-            setStatus(STATUS.ERROR);
+            setStatus(isLikelyNetworkError(e) ? STATUS.OFFLINE : STATUS.ERROR);
             scheduleSync(5000);
             return false;
         } finally {
