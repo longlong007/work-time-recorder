@@ -34,6 +34,13 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          {
+            echo "Host ${DEPLOY_HOST}"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+          } >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Deploy to server
         env:
@@ -44,7 +51,6 @@ jobs:
         run: |
           REMOTE="${DEPLOY_USER:-root}@${DEPLOY_HOST}"
           DOMAIN="${DEPLOY_DOMAIN:-flytime.cloud}"
-          export RSYNC_RSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes"
           ./deploy/deploy-mainland.sh "$REMOTE" "$DOMAIN"
 
       - name: Verify deployment
