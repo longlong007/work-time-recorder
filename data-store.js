@@ -5,7 +5,7 @@ const DataStore = (function () {
     const ALARM_PRESETS_KEY = 'alarmPresets';
     const CURRENT_RECORD_KEY = 'currentRecord';
     const THEME_KEY = 'theme';
-    const DEFAULT_TAGS = ['开发', '会议', '学习', '调试', '文档', '休息'];
+    const DEFAULT_TAGS = ['开发', '学习', '调试', '文档', '休息'];
     const DEFAULT_ALARM_PRESETS = [5, 10, 15, 30, 45];
 
     const dataListeners = [];

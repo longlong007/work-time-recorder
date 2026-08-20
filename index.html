@@ -27,15 +27,15 @@
                     <span class="account-label">账户</span>
                     <span class="account-email" id="accountEmail">未登录</span>
                 </div>
+                <div class="account-sync" id="syncBar">
+                    <span class="sync-icon" id="syncIcon">💾</span>
+                    <span class="sync-status" id="syncStatus">本地模式</span>
+                </div>
                 <div class="account-actions">
+                    <button type="button" class="btn btn-neutral btn-sm sync-now-btn" id="syncNowBtn">立即同步</button>
                     <button type="button" class="btn btn-primary btn-sm" id="loginBtn">登录</button>
                     <button type="button" class="btn btn-neutral btn-sm" id="logoutBtn" style="display: none;">登出</button>
                 </div>
-            </div>
-            <div class="sync-bar" id="syncBar">
-                <span class="sync-icon" id="syncIcon">💾</span>
-                <span class="sync-status" id="syncStatus">本地模式</span>
-                <button type="button" class="btn btn-neutral btn-sm sync-now-btn" id="syncNowBtn">立即同步</button>
             </div>
 
             <!-- 双栏布局容器（桌面端生效） -->
@@ -436,7 +436,7 @@
     <script src="auth.js?v=20260720a"></script>
     <script src="data-store.js?v=20260720c"></script>
     <script src="sync-engine.js?v=20260720c"></script>
-    <script src="cloud-ui.js?v=20260720c"></script>
+    <script src="cloud-ui.js?v=20260820a"></script>
     <script src="stats-charts.js?v=20260820c"></script>
     <script src="script.js?v=20260820c"></script>
 </body>
