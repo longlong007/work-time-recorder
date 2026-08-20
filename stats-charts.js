@@ -171,6 +171,13 @@ const StatsCharts = (function () {
         return `${Math.round(hours)}h`;
     }
 
+    function shouldIncludeRecord(record) {
+        if (typeof matchesStatsFilter === 'function') {
+            return matchesStatsFilter(record);
+        }
+        return true;
+    }
+
     function aggregate(records) {
         const buckets = [];
         const now = new Date();
@@ -218,6 +225,8 @@ const StatsCharts = (function () {
         }
 
         records.forEach((record) => {
+            if (!shouldIncludeRecord(record)) return;
+
             const recordDate = new Date(record.startTime);
             if (Number.isNaN(recordDate.getTime())) return;
 

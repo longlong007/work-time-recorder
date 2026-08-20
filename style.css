@@ -1785,13 +1785,54 @@ body {
 
 /* 统计信息 */
 .statistics-section {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     padding: 12px;
     background: linear-gradient(135deg, #e4eef5 0%, #dae8f2 100%);
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(90, 155, 196, 0.1);
+}
+
+.stat-items-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.stats-filter-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.stats-filter-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.stats-filter-tab:hover {
+    color: var(--text-primary);
+}
+
+.stats-filter-tab.active {
+    background: #5a9bc4;
+    color: #fff;
+}
+
+.stats-filter-tab[data-filter="rest-tag"].active,
+.stats-filter-tab[data-filter="rest-content"].active {
+    background: #7eb89a;
 }
 
 .statistics-section .stat-item {
@@ -1960,8 +2001,19 @@ body {
 [data-theme="dark"] .statistics-section .stat-item,
 [data-theme="dark"] .stats-chart-total-row,
 [data-theme="dark"] .stats-period-tabs,
+[data-theme="dark"] .stats-filter-tabs,
 [data-theme="dark"] .stats-nav-btn {
     background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .stats-filter-tab.active {
+    background: var(--primary-solid);
+    color: #fff;
+}
+
+[data-theme="dark"] .stats-filter-tab[data-filter="rest-tag"].active,
+[data-theme="dark"] .stats-filter-tab[data-filter="rest-content"].active {
+    background: #5a9a78;
 }
 
 [data-theme="dark"] .stats-nav-btn:hover {
@@ -2267,6 +2319,10 @@ body {
     /* 统计区：垂直列表，固定在右栏底部 */
     .layout-right .statistics-section {
         flex-shrink: 0;
+        gap: 5px;
+    }
+
+    .layout-right .stat-items-grid {
         grid-template-columns: 1fr;
         gap: 5px;
     }

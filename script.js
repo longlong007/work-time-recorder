@@ -1,5 +1,7 @@
 const DEFAULT_ALARM_PRESETS = [5, 10, 15, 30, 45];
 const MORE_SETTINGS_OPEN_KEY = 'moreSettingsOpen';
+const REST_TAG = '休息';
+const STATS_FILTER_KEY = 'statsFilterMode';
 
 // 状态管理
 let currentRecord = {
@@ -91,6 +93,12 @@ let alarmAudioContext = null;
 let alarmAudioUnlocked = false;
 let alarmAudioUnlockPromise = null;
 
+const STATS_FILTER_MODES = ['work', 'rest-tag', 'rest-content'];
+let statsFilterMode = localStorage.getItem(STATS_FILTER_KEY) || 'work';
+if (!STATS_FILTER_MODES.includes(statsFilterMode)) {
+    statsFilterMode = 'work';
+}
+
 // 闹钟音效（使用Web Audio API生成简单的提示音）
 
 // 初始化
@@ -107,6 +115,7 @@ function init() {
     initTheme();
     registerServiceWorker();
     initRightPanelView();
+    initStatsFilterTabs();
     if (typeof StatsCharts !== 'undefined') StatsCharts.init();
     
     // 设置默认筛选日期为今天（使用本地时间）
@@ -317,6 +326,72 @@ function getTagsInWorkName(workName) {
     return knownTags.filter((tag) => parts.includes(tag));
 }
 
+// 是否为「休息」标签记录
+function isRestByTag(record) {
+    const workName = record.workName || '';
+    return getTagsInWorkName(workName).includes(REST_TAG);
+}
+
+// 工作内容是否包含「休息」二字
+function isRestByContent(record) {
+    return (record.workName || '').includes(REST_TAG);
+}
+
+// 是否为休息相关记录（标签或内容）
+function isRestRecord(record) {
+    return isRestByTag(record) || isRestByContent(record);
+}
+
+function getStatsFilterFn(mode = statsFilterMode) {
+    if (mode === 'rest-tag') {
+        return isRestByTag;
+    }
+    if (mode === 'rest-content') {
+        return isRestByContent;
+    }
+    return (record) => !isRestRecord(record);
+}
+
+function matchesStatsFilter(record, mode = statsFilterMode) {
+    return getStatsFilterFn(mode)(record);
+}
+
+function getStatsFilterMode() {
+    return statsFilterMode;
+}
+
+function setStatsFilterMode(mode) {
+    if (!STATS_FILTER_MODES.includes(mode) || mode === statsFilterMode) {
+        return;
+    }
+    statsFilterMode = mode;
+    localStorage.setItem(STATS_FILTER_KEY, mode);
+    document.querySelectorAll('.stats-filter-tab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.filter === mode);
+    });
+    updateStatistics();
+}
+
+function initStatsFilterTabs() {
+    document.querySelectorAll('.stats-filter-tab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.filter === statsFilterMode);
+        btn.addEventListener('click', () => {
+            setStatsFilterMode(btn.dataset.filter);
+        });
+    });
+}
+
+function sumDurationInRange(records, rangeStart, rangeEnd, filterFn) {
+    let totalMs = 0;
+    records.forEach((record) => {
+        const recordDate = new Date(record.startTime);
+        if (recordDate >= rangeStart && recordDate < rangeEnd && filterFn(record)) {
+            totalMs += record.duration;
+        }
+    });
+    return totalMs;
+}
+
 // 同步快速标签选中态
 function syncQuickTagSelection() {
     const activeTags = new Set(getTagsInWorkName(workNameInput.value.trim()));
@@ -519,41 +594,20 @@ function updateStatistics() {
     const records = getHistoryRecords();
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    // 计算本周的开始时间(周一)
+    const todayEnd = new Date(todayStart.getTime() + 86400000);
     const weekStart = new Date(todayStart);
-    const dayOfWeek = weekStart.getDay(); // 0(周日)到 6(周六)
+    const dayOfWeek = weekStart.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     weekStart.setDate(weekStart.getDate() - daysToMonday);
-    
-    let todayTotalMs = 0;
-    let weekTotalMs = 0;
-    let monthTotalMs = 0;
-    
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const filterFn = getStatsFilterFn();
 
-    records.forEach(record => {
-        const recordDate = new Date(record.startTime);
-        const duration = record.duration;
-        
-        if (recordDate >= todayStart && recordDate < new Date(todayStart.getTime() + 86400000)) {
-            todayTotalMs += duration;
-        }
-        
-        if (recordDate >= weekStart && recordDate < weekEnd) {
-            weekTotalMs += duration;
-        }
-
-        if (recordDate >= monthStart && recordDate < monthEnd) {
-            monthTotalMs += duration;
-        }
-    });
-    
-    todayTotal.textContent = formatDuration(todayTotalMs);
-    weekTotal.textContent = formatDuration(weekTotalMs);
-    monthTotal.textContent = formatDuration(monthTotalMs);
+    todayTotal.textContent = formatDuration(sumDurationInRange(records, todayStart, todayEnd, filterFn));
+    weekTotal.textContent = formatDuration(sumDurationInRange(records, weekStart, weekEnd, filterFn));
+    monthTotal.textContent = formatDuration(sumDurationInRange(records, monthStart, monthEnd, filterFn));
 
     if (typeof StatsCharts !== 'undefined') StatsCharts.refresh();
 }
@@ -939,10 +993,14 @@ function saveTags(tags) {
 
 // 加载标签
 function loadTags() {
-    // 确保有默认标签
     const tags = getTags();
     if (tags.length === 0) {
-        saveTags(['开发', '会议', '学习', '调试', '文档']);
+        saveTags(['开发', '会议', '学习', '调试', '文档', '休息']);
+        return;
+    }
+    if (!tags.includes(REST_TAG)) {
+        tags.push(REST_TAG);
+        saveTags(tags);
     }
 }
 

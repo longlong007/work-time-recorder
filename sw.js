@@ -1,4 +1,4 @@
-const CACHE_NAME = 'work-time-recorder-v22';
+const CACHE_NAME = 'work-time-recorder-v23';
 const urlsToCache = [
   '/',
   '/index.html',

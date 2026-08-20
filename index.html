@@ -194,17 +194,24 @@
                     <div class="right-panel right-panel-stats" id="rightPanelStats">
                     <!-- 统计区域 -->
                     <div class="statistics-section" id="statistics">
-                        <div class="stat-item">
-                            <span class="stat-label">今日总计</span>
-                            <span class="stat-value" id="todayTotal">00:00:00</span>
+                        <div class="stats-filter-tabs">
+                            <button type="button" class="stats-filter-tab active" data-filter="work">工作</button>
+                            <button type="button" class="stats-filter-tab" data-filter="rest-tag">休息标签</button>
+                            <button type="button" class="stats-filter-tab" data-filter="rest-content">含休息</button>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">本周总计</span>
-                            <span class="stat-value" id="weekTotal">00:00:00</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">本月总计</span>
-                            <span class="stat-value" id="monthTotal">00:00:00</span>
+                        <div class="stat-items-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">今日总计</span>
+                                <span class="stat-value" id="todayTotal">00:00:00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">本周总计</span>
+                                <span class="stat-value" id="weekTotal">00:00:00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">本月总计</span>
+                                <span class="stat-value" id="monthTotal">00:00:00</span>
+                            </div>
                         </div>
                     </div>
 
@@ -416,7 +423,7 @@
     <script src="data-store.js?v=20260720c"></script>
     <script src="sync-engine.js?v=20260720c"></script>
     <script src="cloud-ui.js?v=20260720c"></script>
-    <script src="stats-charts.js?v=20260814"></script>
-    <script src="script.js?v=20260713d"></script>
+    <script src="stats-charts.js?v=20260820"></script>
+    <script src="script.js?v=20260820"></script>
 </body>
 </html>
