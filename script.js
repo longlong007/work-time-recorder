@@ -1,7 +1,7 @@
 const DEFAULT_ALARM_PRESETS = [5, 10, 15, 30, 45];
 const MORE_SETTINGS_OPEN_KEY = 'moreSettingsOpen';
 const REST_TAG = '休息';
-const STATS_FILTER_KEY = 'statsFilterMode';
+const STATS_FILTER_KEY = 'statsChartFilterMode';
 
 // 状态管理
 let currentRecord = {
@@ -31,9 +31,12 @@ const importFileInput = document.getElementById('importFileInput');
 const filterDate = document.getElementById('filterDate');
 const filterBtn = document.getElementById('filterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
-const todayTotal = document.getElementById('todayTotal');
-const weekTotal = document.getElementById('weekTotal');
-const monthTotal = document.getElementById('monthTotal');
+
+const STATS_SUMMARY_GROUPS = [
+    { mode: 'work', ids: ['todayWorkTotal', 'weekWorkTotal', 'monthWorkTotal'] },
+    { mode: 'rest-tag', ids: ['todayRestTagTotal', 'weekRestTagTotal', 'monthRestTagTotal'] },
+    { mode: 'all', ids: ['todayAllTotal', 'weekAllTotal', 'monthAllTotal'] },
+];
 
 // 标签相关 DOM 元素
 const quickTags = document.getElementById('quickTags');
@@ -93,7 +96,7 @@ let alarmAudioContext = null;
 let alarmAudioUnlocked = false;
 let alarmAudioUnlockPromise = null;
 
-const STATS_FILTER_MODES = ['work', 'rest-tag', 'rest-content'];
+const STATS_FILTER_MODES = ['work', 'rest-tag', 'all'];
 let statsFilterMode = localStorage.getItem(STATS_FILTER_KEY) || 'work';
 if (!STATS_FILTER_MODES.includes(statsFilterMode)) {
     statsFilterMode = 'work';
@@ -115,7 +118,7 @@ function init() {
     initTheme();
     registerServiceWorker();
     initRightPanelView();
-    initStatsFilterTabs();
+    initChartFilterTabs();
     if (typeof StatsCharts !== 'undefined') StatsCharts.init();
     
     // 设置默认筛选日期为今天（使用本地时间）
@@ -332,22 +335,17 @@ function isRestByTag(record) {
     return getTagsInWorkName(workName).includes(REST_TAG);
 }
 
-// 工作内容是否包含「休息」二字
-function isRestByContent(record) {
-    return (record.workName || '').includes(REST_TAG);
-}
-
-// 是否为休息相关记录（标签或内容）
+// 是否为休息记录（以「休息」标签为准）
 function isRestRecord(record) {
-    return isRestByTag(record) || isRestByContent(record);
+    return isRestByTag(record);
 }
 
 function getStatsFilterFn(mode = statsFilterMode) {
     if (mode === 'rest-tag') {
         return isRestByTag;
     }
-    if (mode === 'rest-content') {
-        return isRestByContent;
+    if (mode === 'all') {
+        return () => true;
     }
     return (record) => !isRestRecord(record);
 }
@@ -366,14 +364,14 @@ function setStatsFilterMode(mode) {
     }
     statsFilterMode = mode;
     localStorage.setItem(STATS_FILTER_KEY, mode);
-    document.querySelectorAll('.stats-filter-tab').forEach((btn) => {
+    document.querySelectorAll('.stats-chart-filter-tab').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.filter === mode);
     });
-    updateStatistics();
+    if (typeof StatsCharts !== 'undefined') StatsCharts.refresh();
 }
 
-function initStatsFilterTabs() {
-    document.querySelectorAll('.stats-filter-tab').forEach((btn) => {
+function initChartFilterTabs() {
+    document.querySelectorAll('.stats-chart-filter-tab').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.filter === statsFilterMode);
         btn.addEventListener('click', () => {
             setStatsFilterMode(btn.dataset.filter);
@@ -603,11 +601,21 @@ function updateStatistics() {
     weekEnd.setDate(weekEnd.getDate() + 7);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const filterFn = getStatsFilterFn();
+    const ranges = [
+        [todayStart, todayEnd],
+        [weekStart, weekEnd],
+        [monthStart, monthEnd],
+    ];
 
-    todayTotal.textContent = formatDuration(sumDurationInRange(records, todayStart, todayEnd, filterFn));
-    weekTotal.textContent = formatDuration(sumDurationInRange(records, weekStart, weekEnd, filterFn));
-    monthTotal.textContent = formatDuration(sumDurationInRange(records, monthStart, monthEnd, filterFn));
+    STATS_SUMMARY_GROUPS.forEach(({ mode, ids }) => {
+        const filterFn = getStatsFilterFn(mode);
+        ids.forEach((id, index) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const [start, end] = ranges[index];
+            el.textContent = formatDuration(sumDurationInRange(records, start, end, filterFn));
+        });
+    });
 
     if (typeof StatsCharts !== 'undefined') StatsCharts.refresh();
 }

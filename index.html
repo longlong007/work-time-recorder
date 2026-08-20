@@ -194,23 +194,30 @@
                     <div class="right-panel right-panel-stats" id="rightPanelStats">
                     <!-- 统计区域 -->
                     <div class="statistics-section" id="statistics">
-                        <div class="stats-filter-tabs">
-                            <button type="button" class="stats-filter-tab active" data-filter="work">工作</button>
-                            <button type="button" class="stats-filter-tab" data-filter="rest-tag">休息标签</button>
-                            <button type="button" class="stats-filter-tab" data-filter="rest-content">含休息</button>
-                        </div>
-                        <div class="stat-items-grid">
-                            <div class="stat-item">
-                                <span class="stat-label">今日总计</span>
-                                <span class="stat-value" id="todayTotal">00:00:00</span>
+                        <div class="stats-table">
+                            <div class="stats-table-header">
+                                <span class="stats-table-corner"></span>
+                                <span>今日</span>
+                                <span>本周</span>
+                                <span>本月</span>
                             </div>
-                            <div class="stat-item">
-                                <span class="stat-label">本周总计</span>
-                                <span class="stat-value" id="weekTotal">00:00:00</span>
+                            <div class="stats-table-row stats-table-row-work">
+                                <span class="stats-table-row-label">工作</span>
+                                <span class="stat-value" id="todayWorkTotal">00:00:00</span>
+                                <span class="stat-value" id="weekWorkTotal">00:00:00</span>
+                                <span class="stat-value" id="monthWorkTotal">00:00:00</span>
                             </div>
-                            <div class="stat-item">
-                                <span class="stat-label">本月总计</span>
-                                <span class="stat-value" id="monthTotal">00:00:00</span>
+                            <div class="stats-table-row stats-table-row-rest-tag">
+                                <span class="stats-table-row-label">休息</span>
+                                <span class="stat-value stat-value-rest" id="todayRestTagTotal">00:00:00</span>
+                                <span class="stat-value stat-value-rest" id="weekRestTagTotal">00:00:00</span>
+                                <span class="stat-value stat-value-rest" id="monthRestTagTotal">00:00:00</span>
+                            </div>
+                            <div class="stats-table-row stats-table-row-all">
+                                <span class="stats-table-row-label">全部</span>
+                                <span class="stat-value stat-value-all" id="todayAllTotal">00:00:00</span>
+                                <span class="stat-value stat-value-all" id="weekAllTotal">00:00:00</span>
+                                <span class="stat-value stat-value-all" id="monthAllTotal">00:00:00</span>
                             </div>
                         </div>
                     </div>
@@ -231,7 +238,14 @@
                         </div>
                         <div class="stats-chart-total-row">
                             <span class="stats-chart-total-label">时段合计</span>
-                            <span class="stats-chart-total-value" id="statsChartTotal">00:00:00</span>
+                            <div class="stats-chart-total-right">
+                                <div class="stats-chart-filter-tabs">
+                                    <button type="button" class="stats-chart-filter-tab active" data-filter="work">工作</button>
+                                    <button type="button" class="stats-chart-filter-tab" data-filter="rest-tag">休息</button>
+                                    <button type="button" class="stats-chart-filter-tab" data-filter="all">全部</button>
+                                </div>
+                                <span class="stats-chart-total-value" id="statsChartTotal">00:00:00</span>
+                            </div>
                         </div>
                         <div class="stats-chart-container">
                             <canvas id="workTimeChart"></canvas>
@@ -423,7 +437,7 @@
     <script src="data-store.js?v=20260720c"></script>
     <script src="sync-engine.js?v=20260720c"></script>
     <script src="cloud-ui.js?v=20260720c"></script>
-    <script src="stats-charts.js?v=20260820"></script>
-    <script src="script.js?v=20260820"></script>
+    <script src="stats-charts.js?v=20260820c"></script>
+    <script src="script.js?v=20260820c"></script>
 </body>
 </html>
