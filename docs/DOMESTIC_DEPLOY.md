@@ -285,7 +285,7 @@ python3 -m http.server 8080
 
 ### 5.3 数据迁移（可选）
 
-若从 Supabase 迁数据，见 [DATA_MIGRATION.md](DATA_MIGRATION.md)。本地有完整数据时，登录后会弹出「迁移本地数据」对话框。
+若从 Supabase 迁数据，见 [DATA_MIGRATION.md](DATA_MIGRATION.md)。本地有完整数据时，登录后会静默同步到云端（本地∪云端）。
 
 ---
 

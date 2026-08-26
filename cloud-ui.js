@@ -1,7 +1,8 @@
-// 云端同步 UI — 登录、迁移、同步状态
+// 云端同步 UI — 登录、静默同步、同步状态
 const CloudUI = (function () {
-    let migrationChecked = false;
+    const BOUND_ACCOUNT_KEY = 'cloudAccountBound';
     let pendingVerificationInfo = null;
+    let syncAfterLoginInFlight = false;
 
     function $(id) {
         return document.getElementById(id);
@@ -15,11 +16,26 @@ const CloudUI = (function () {
         if (modal) modal.style.display = 'none';
     }
 
+    function getBoundUserId() {
+        return localStorage.getItem(BOUND_ACCOUNT_KEY) || '';
+    }
+
+    function isAccountBound(userId) {
+        return Boolean(userId && getBoundUserId() === userId);
+    }
+
+    function markAccountBound(userId) {
+        if (userId) {
+            localStorage.setItem(BOUND_ACCOUNT_KEY, userId);
+        }
+    }
+
     function updateAccountBar(user) {
         const accountBar = $('accountBar');
         const accountEmail = $('accountEmail');
         const loginBtn = $('loginBtn');
         const logoutBtn = $('logoutBtn');
+        const syncBar = $('syncBar');
 
         if (!accountBar) return;
 
@@ -182,12 +198,12 @@ const CloudUI = (function () {
                 pendingVerificationInfo = null;
                 hideModal($('authModal'));
                 $('authForm').reset();
-                await checkMigrationAfterLogin();
+                await ensureSyncedAfterLogin();
             } else {
                 await Auth.signIn(email, password);
                 hideModal($('authModal'));
                 $('authForm').reset();
-                await checkMigrationAfterLogin();
+                await ensureSyncedAfterLogin();
             }
         } catch (err) {
             showAuthError(Auth.formatAuthError(err));
@@ -196,58 +212,41 @@ const CloudUI = (function () {
         }
     }
 
-    async function checkMigrationAfterLogin() {
-        if (migrationChecked) return;
-        migrationChecked = true;
+    /**
+     * 登录后静默同步（印象笔记式）：
+     * - 本机首次绑定该账号：重置同步游标 + 差集补传，本地∪云端
+     * - 已绑定过：仅增量 syncNow
+     * 不再弹出合并/覆盖对话框。
+     */
+    async function ensureSyncedAfterLogin() {
+        if (syncAfterLoginInFlight) return;
+        if (!Auth.isLoggedIn()) return;
 
-        if (!DataStore.hasLocalRecords()) {
-            await DataStore.syncNow();
-            refreshAppData();
-            return;
-        }
+        syncAfterLoginInFlight = true;
+        const userId = Auth.getUserId();
 
         try {
-            const cloudCount = await SyncEngine.getCloudRecordCount();
-            if (cloudCount === 0) {
-                showMigrationModal('upload');
-            } else {
-                showMigrationModal('merge');
+            if (userId && !isAccountBound(userId) && typeof SyncEngine.resetSyncCursorForFirstBind === 'function') {
+                SyncEngine.resetSyncCursorForFirstBind();
             }
+
+            updateSyncStatus(SyncEngine.STATUS.SYNCING);
+            const ok = await DataStore.syncNow();
+            // 成功或「已无待重试」都视为完成本机绑定；失败则下次登录再走首次全量
+            if (ok && userId) {
+                markAccountBound(userId);
+            }
+            refreshAppData();
         } catch (e) {
-            console.error('Migration check failed:', e);
+            console.error('登录后同步失败:', e);
+        } finally {
+            syncAfterLoginInFlight = false;
         }
     }
 
-    function showMigrationModal(type) {
-        const modal = $('migrationModal');
-        const title = $('migrationTitle');
-        const desc = $('migrationDesc');
-        const uploadBtn = $('migrationUploadBtn');
-        const mergeBtn = $('migrationMergeBtn');
-        const cloudBtn = $('migrationCloudBtn');
-        const localBtn = $('migrationLocalBtn');
-        const skipBtn = $('migrationSkipBtn');
-
-        if (!modal) return;
-
-        if (type === 'upload') {
-            title.textContent = '迁移本地数据';
-            desc.textContent = '检测到本地有工时记录，云端为空。是否将本地数据上传到云端？';
-            uploadBtn.style.display = 'inline-flex';
-            mergeBtn.style.display = 'none';
-            cloudBtn.style.display = 'none';
-            localBtn.style.display = 'none';
-        } else {
-            title.textContent = '数据合并';
-            desc.textContent = '本地和云端都有数据，请选择如何处理：';
-            uploadBtn.style.display = 'none';
-            mergeBtn.style.display = 'inline-flex';
-            cloudBtn.style.display = 'inline-flex';
-            localBtn.style.display = 'inline-flex';
-        }
-        skipBtn.style.display = 'inline-flex';
-        setMigrationProgressVisible(false, 0);
-        showModal(modal);
+    // 兼容旧调用名
+    async function checkMigrationAfterLogin() {
+        return ensureSyncedAfterLogin();
     }
 
     function refreshAppData() {
@@ -258,6 +257,9 @@ const CloudUI = (function () {
         if (typeof initTheme === 'function') initTheme();
         if (typeof renderAlarmPresets === 'function') renderAlarmPresets();
         if (typeof initAlarmPresetButtons === 'function') initAlarmPresetButtons();
+        if (typeof StatsCharts !== 'undefined' && StatsCharts.refresh) {
+            StatsCharts.refresh();
+        }
     }
 
     function setMigrationProgressVisible(visible, total) {
@@ -284,6 +286,7 @@ const CloudUI = (function () {
         }
     }
 
+    /** 保留给特殊场景手动调用；登录路径不再自动弹出 */
     async function runMigration(strategy) {
         const modal = $('migrationModal');
         const needsUpload = strategy === 'local' || strategy === 'merge';
@@ -300,6 +303,8 @@ const CloudUI = (function () {
             });
             hideModal(modal);
             setMigrationProgressVisible(false, 0);
+            const userId = Auth.getUserId();
+            if (userId) markAccountBound(userId);
             let msg = '数据同步完成';
             if (strategy === 'merge') msg = '已合并本地与云端数据';
             else if (strategy === 'cloud') msg = '已使用云端数据覆盖本地';
@@ -332,10 +337,8 @@ const CloudUI = (function () {
             updateAccountBar(user);
             if (user) {
                 SyncEngine.subscribeActiveSession(handleRemoteActiveSession);
-                await DataStore.syncNow();
-                refreshAppData();
+                await ensureSyncedAfterLogin();
             } else {
-                migrationChecked = false;
                 SyncEngine.unsubscribeActiveSession();
             }
         });
@@ -367,7 +370,6 @@ const CloudUI = (function () {
                 if (!confirm('确定要登出吗？登出后仅显示本地缓存数据。')) return;
                 try {
                     await Auth.signOut();
-                    migrationChecked = false;
                 } catch (e) {
                     alert('登出失败：' + e.message);
                 }
@@ -394,6 +396,7 @@ const CloudUI = (function () {
             });
         }
 
+        // 迁移弹窗按钮保留（不自动弹出）；便于控制台/调试手动触发
         if (migrationUploadBtn) {
             migrationUploadBtn.addEventListener('click', () => runMigration('local'));
         }
@@ -423,5 +426,5 @@ const CloudUI = (function () {
         switchAuthTab('login');
     }
 
-    return { init, refreshAppData, checkMigrationAfterLogin };
+    return { init, refreshAppData, checkMigrationAfterLogin, ensureSyncedAfterLogin };
 })();

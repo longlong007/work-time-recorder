@@ -111,6 +111,15 @@ const SyncEngine = (function () {
         localStorage.setItem(LAST_SYNCED_KEY, iso);
     }
 
+    /**
+     * 本机首次绑定某云账号时调用：重置增量游标并允许再做一次差集补传，
+     * 使紧接着的 syncNow 等价于「本地∪云端」静默并集（印象笔记式首次同步）。
+     */
+    function resetSyncCursorForFirstBind() {
+        setLastSyncedAt('1970-01-01T00:00:00.000Z');
+        backfillDone = false;
+    }
+
     function recordForCloud(record) {
         return {
             startTime: record.startTime,
@@ -941,6 +950,7 @@ const SyncEngine = (function () {
         syncNow,
         queueOp,
         pushSettings,
+        resetSyncCursorForFirstBind,
         getCloudRecordCount,
         migrateLocalToCloud,
         onUploadProgress,
