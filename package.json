@@ -1,0 +1,57 @@
+{
+  "name": "work-time-recorder",
+  "version": "1.0.0",
+  "description": "工作时间记录器 — Mac 桌面版",
+  "main": "electron/main.js",
+  "author": "work-time-recorder",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "node scripts/ensure-electron.js",
+    "start": "electron .",
+    "electron": "electron .",
+    "pack": "electron-builder --mac --dir",
+    "dist": "electron-builder --mac dmg",
+    "ensure-electron": "node scripts/ensure-electron.js"
+  },
+  "build": {
+    "appId": "com.worktimerecorder.app",
+    "productName": "工作时间记录器",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "index.html",
+      "style.css",
+      "script.js",
+      "auth.js",
+      "data-store.js",
+      "sync-engine.js",
+      "cloud-ui.js",
+      "stats-charts.js",
+      "sw.js",
+      "manifest.json",
+      "config.example.js",
+      "config.js",
+      "vendor/**/*",
+      "electron/**/*",
+      "!electron/icons/*.svg"
+    ],
+    "extraResources": [],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "electron/icons/icon.icns",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "工作时间记录器"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

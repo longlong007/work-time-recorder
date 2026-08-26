@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工时悬浮条</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 100%;
+            padding: 0 12px;
+            border-radius: 14px;
+            background: rgba(28, 36, 48, 0.88);
+            color: #f4f7fb;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            -webkit-app-region: drag;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #8a97a8;
+            flex-shrink: 0;
+        }
+        .dot.running {
+            background: #3dd68c;
+            box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.25);
+        }
+        .meta {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+        .elapsed {
+            font-variant-numeric: tabular-nums;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .name {
+            font-size: 11px;
+            color: rgba(244, 247, 251, 0.72);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .actions {
+            display: flex;
+            gap: 6px;
+            -webkit-app-region: no-drag;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            background: #5a9bc4;
+        }
+        button.stop {
+            background: #d97757;
+        }
+        button.ghost {
+            background: rgba(255, 255, 255, 0.12);
+        }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <span class="dot" id="statusDot"></span>
+        <div class="meta">
+            <div class="elapsed" id="elapsed">00:00:00</div>
+            <div class="name" id="workName">未开始</div>
+        </div>
+        <div class="actions">
+            <button type="button" id="toggleBtn">开始</button>
+            <button type="button" class="ghost" id="openMainBtn" title="打开主窗口">⌂</button>
+        </div>
+    </div>
+    <script>
+        const statusDot = document.getElementById('statusDot');
+        const elapsedEl = document.getElementById('elapsed');
+        const workNameEl = document.getElementById('workName');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const openMainBtn = document.getElementById('openMainBtn');
+
+        function applyStatus(status) {
+            const running = Boolean(status && status.running);
+            elapsedEl.textContent = (status && status.elapsed) || '00:00:00';
+            workNameEl.textContent = running
+                ? ((status && status.workName) || '工作中')
+                : '未开始';
+            statusDot.classList.toggle('running', running);
+            toggleBtn.textContent = running ? '结束' : '开始';
+            toggleBtn.classList.toggle('stop', running);
+        }
+
+        if (window.electronAPI) {
+            window.electronAPI.onStatus(applyStatus);
+            toggleBtn.addEventListener('click', () => {
+                window.electronAPI.requestToggleTimer();
+            });
+            openMainBtn.addEventListener('click', () => {
+                window.electronAPI.showMainWindow();
+            });
+        }
+    </script>
+</body>
+</html>

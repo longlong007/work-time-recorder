@@ -117,6 +117,7 @@ function init() {
     initMoreSettings();
     initTheme();
     registerServiceWorker();
+    initElectronBridge();
     initRightPanelView();
     initChartFilterTabs();
     if (typeof StatsCharts !== 'undefined') StatsCharts.init();
@@ -147,11 +148,49 @@ function initMoreSettings() {
 
 // ==================== PWA 注册 ====================
 function registerServiceWorker() {
+    // Electron 桌面版由本地静态服务托管，无需 Service Worker
+    if (window.electronAPI) {
+        return;
+    }
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(() => console.log('Service Worker 注册成功'))
             .catch((err) => console.log('Service Worker 注册失败:', err));
     }
+}
+
+// ==================== Electron 桌面桥接 ====================
+function reportElectronStatus() {
+    if (!window.electronAPI || typeof window.electronAPI.reportStatus !== 'function') {
+        return;
+    }
+    let elapsed = '00:00:00';
+    if (currentRecord.isActive && currentRecord.startTime) {
+        elapsed = formatDuration(
+            calculateDuration(currentRecord.startTime, new Date().toISOString())
+        );
+    }
+    window.electronAPI.reportStatus({
+        running: Boolean(currentRecord.isActive),
+        elapsed,
+        workName: currentRecord.workName || ''
+    });
+}
+
+function initElectronBridge() {
+    if (!window.electronAPI) {
+        return;
+    }
+    if (typeof window.electronAPI.onToggleTimer === 'function') {
+        window.electronAPI.onToggleTimer(() => {
+            if (currentRecord.isActive) {
+                endWork();
+            } else {
+                startWork();
+            }
+        });
+    }
+    reportElectronStatus();
 }
 
 // 加载当前记录
@@ -418,6 +457,7 @@ function updateDisplay() {
     }
     syncQuickTagSelection();
     updateClock();
+    reportElectronStatus();
 }
 
 // 开始时钟（已工作时长 + 当前时间 + 闹钟进度）
@@ -454,6 +494,7 @@ function updateClock() {
     } else {
         elapsedDisplay.textContent = '00:00:00';
     }
+    reportElectronStatus();
 }
 
 // 开始计时器
