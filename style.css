@@ -198,7 +198,6 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     font-size: 13px;
-    flex-shrink: 0;
 }
 
 .account-info {
@@ -219,15 +218,6 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 0;
-}
-
-.account-sync {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    flex: 0 1 auto;
 }
 
 .account-actions {

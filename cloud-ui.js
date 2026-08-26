@@ -26,11 +26,13 @@ const CloudUI = (function () {
         accountBar.style.display = 'flex';
 
         if (!APP_CONFIG.isCloudEnabled()) {
-            if (accountEmail) accountEmail.textContent = '未配置云端';
-            if (loginBtn) loginBtn.style.display = 'inline-flex';
-            if (logoutBtn) logoutBtn.style.display = 'none';
+            accountBar.style.display = 'none';
+            if (syncBar) syncBar.style.display = 'none';
             return;
         }
+
+        accountBar.style.display = 'flex';
+        if (syncBar) syncBar.style.display = 'flex';
 
         if (user) {
             if (accountEmail) accountEmail.textContent = user.email || '已登录';
@@ -320,13 +322,6 @@ const CloudUI = (function () {
     function init() {
         if (!APP_CONFIG.isCloudEnabled()) {
             updateAccountBar(null);
-            updateSyncStatus('not_configured');
-            const loginBtn = $('loginBtn');
-            if (loginBtn) {
-                loginBtn.addEventListener('click', () => {
-                    alert('未配置云端，请先在 config.js 中填写环境 ID');
-                });
-            }
             return;
         }
 
