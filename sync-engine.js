@@ -4,6 +4,9 @@ const SyncEngine = (function () {
     const LAST_SYNCED_KEY = 'lastSyncedAt';
     const ACTIVE_SESSION_KEY = 'currentRecord';
     const PAGE_SIZE = 100;
+    // 增量拉取回拨窗口：默认 5 分钟；「立即同步」用更大窗口纠偏漏拉
+    const PULL_OVERLAP_MS = 5 * 60 * 1000;
+    const MANUAL_PULL_OVERLAP_MS = 24 * 60 * 60 * 1000;
     // 上传节流：低并发 + 单请求超时，避免突发请求打满 CloudBase 写 QPS 导致卡死。
     // 限流/超时不在此处自动重试（会火上浇油），失败的 op 留在队列由 sync 层稍后重调。
     const UPLOAD_CONCURRENCY = 4;
@@ -158,6 +161,34 @@ const SyncEngine = (function () {
 
     function getBatchFunctionName() {
         return APP_CONFIG.CLOUDBASE_BATCH_FN || 'batchUpsertWorkRecords';
+    }
+
+    function getPullFunctionName() {
+        return APP_CONFIG.CLOUDBASE_PULL_FN || 'pullWorkRecordChanges';
+    }
+
+    function normalizePulledRecord(raw) {
+        if (!raw) return null;
+        const id = raw.id || raw._id;
+        if (!id) return null;
+        return {
+            id,
+            startTime: raw.startTime,
+            endTime: raw.endTime,
+            duration: raw.duration,
+            workName: raw.workName || '',
+            updatedAt: raw.updatedAt,
+            deletedAt: raw.deletedAt || null
+        };
+    }
+
+    function maxUpdatedAtIso(records) {
+        let maxMs = 0;
+        (records || []).forEach((r) => {
+            const t = new Date(r && r.updatedAt).getTime();
+            if (!Number.isNaN(t) && t > maxMs) maxMs = t;
+        });
+        return maxMs > 0 ? new Date(maxMs).toISOString() : null;
     }
 
     function shouldUseCloudBatch(records) {
@@ -601,23 +632,62 @@ const SyncEngine = (function () {
         return { failed: remaining.length, networkFailure };
     }
 
-    async function pullRemoteChanges() {
-        const db = getDb();
-        if (!db) return null;
+    /**
+     * 增量拉取（A+D）：
+     * 优先走云函数，用 serverNow 推进游标；失败时回退客户端查询（不应用本机 now 推进游标）。
+     * @returns {{ records: Array, serverNow: string|null }}
+     */
+    async function pullRemoteChanges(options = {}) {
+        const overlapMs =
+            typeof options.overlapMs === 'number' ? options.overlapMs : PULL_OVERLAP_MS;
+        const since = getLastSyncedAt();
 
-        const lastSynced = getLastSyncedAt();
+        if (typeof Auth.callFunction === 'function') {
+            try {
+                const result = await withTimeout(
+                    Auth.callFunction(getPullFunctionName(), {
+                        since,
+                        overlapMs
+                    }),
+                    'pullWorkRecordChanges'
+                );
+                if (result && result.ok !== false) {
+                    const records = (result.records || [])
+                        .map(normalizePulledRecord)
+                        .filter(Boolean);
+                    return {
+                        records,
+                        serverNow: result.serverNow || null
+                    };
+                }
+                console.warn('增量拉取云函数返回异常，回退客户端拉取:', result && result.error);
+            } catch (e) {
+                console.warn('增量拉取云函数不可用，回退客户端拉取:', e.message || e);
+            }
+        }
+
+        const db = getDb();
+        if (!db) return { records: [], serverNow: null };
+
+        const sinceMs = new Date(since).getTime();
+        const pullSince = Number.isNaN(sinceMs)
+            ? '1970-01-01T00:00:00.000Z'
+            : new Date(Math.max(0, sinceMs - overlapMs)).toISOString();
         const _ = db.command;
 
         const docs = await fetchAllDocs(db, 'work_records', (query) =>
             query
                 .where({
                     _openid: '{openid}',
-                    updatedAt: _.gt(lastSynced)
+                    updatedAt: _.gt(pullSince)
                 })
                 .orderBy('updatedAt', 'asc')
         );
 
-        return docs.map(docToRecord);
+        return {
+            records: docs.map(docToRecord),
+            serverNow: null
+        };
     }
 
     async function pullSettings() {
@@ -665,7 +735,10 @@ const SyncEngine = (function () {
         syncDebounceTimer = setTimeout(() => syncNow(), delayMs);
     }
 
-    async function syncNow() {
+    async function syncNow(options = {}) {
+        const manual = Boolean(options && options.manual);
+        const overlapMs = manual ? MANUAL_PULL_OVERLAP_MS : PULL_OVERLAP_MS;
+
         if (!APP_CONFIG.isCloudEnabled()) {
             setStatus(STATUS.NOT_CONFIGURED);
             return false;
@@ -686,6 +759,7 @@ const SyncEngine = (function () {
 
         let hasFailure = false;
         let networkFailure = false;
+        let pullResult = { records: [], serverNow: null };
 
         try {
             const pushResult = await pushPendingOps();
@@ -701,10 +775,10 @@ const SyncEngine = (function () {
                 });
             }
 
-            const remoteRecords = await pullRemoteChanges();
-            if (remoteRecords && remoteRecords.length > 0) {
+            pullResult = await pullRemoteChanges({ overlapMs });
+            if (pullResult.records && pullResult.records.length > 0) {
                 const localRecords = DataStore.getAllRecordsIncludingDeleted();
-                const merged = mergeRecords(localRecords, remoteRecords);
+                const merged = mergeRecords(localRecords, pullResult.records);
                 DataStore.setRecordsInternal(merged);
             }
 
@@ -717,7 +791,15 @@ const SyncEngine = (function () {
 
             const pendingLeft = getPendingOps().length;
             if (pendingLeft === 0 && !hasFailure) {
-                setLastSyncedAt(new Date().toISOString());
+                // D：优先用服务端时间推进游标；无 serverNow 时仅用变更集 max(updatedAt)
+                // 空拉取且无 serverNow 时不推进，避免本机时钟超前造成永久漏拉
+                const cursor =
+                    pullResult.serverNow ||
+                    maxUpdatedAtIso(pullResult.records) ||
+                    null;
+                if (cursor) {
+                    setLastSyncedAt(cursor);
+                }
                 setStatus(STATUS.SYNCED);
             } else {
                 setStatus(networkFailure ? STATUS.OFFLINE : STATUS.ERROR);

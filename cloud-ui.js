@@ -391,7 +391,8 @@ const CloudUI = (function () {
         if (syncNowBtn) {
             syncNowBtn.addEventListener('click', async () => {
                 syncNowBtn.disabled = true;
-                await DataStore.syncNow();
+                // 手动同步走全量对账，修复增量游标漏拉后的历史缺口
+                await DataStore.syncNow({ manual: true });
                 refreshAppData();
             });
         }

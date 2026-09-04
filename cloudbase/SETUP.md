@@ -110,6 +110,23 @@ CLOUDBASE_BATCH_FN: 'batchUpsertWorkRecords',
 ### 8.5 验证
 
 1. 强制刷新页面（`Cmd+Shift+R`）清 Service Worker 缓存
-2. 登录 → 点击「上传到云端」
-3. Network 面板应看到约 **7 次** `callFunction` 请求（637 条），进度条从 `0/637` 走到 `637/637`
+2. 登录后点「立即同步」
+3. Network 面板应看到 `callFunction`（批量上传场景）或常规同步请求
 4. 不应再出现 6000+ 条 database 写请求
+
+## 9. 部署增量拉取云函数（推荐，修时钟偏差）
+
+客户端增量同步应使用云函数返回的 **serverNow** 推进游标，避免本机时钟超前导致永久漏拉。
+
+```bash
+cd cloudfunctions/pullWorkRecordChanges && npm install && cd ../..
+tcb fn deploy pullWorkRecordChanges --dir cloudfunctions/pullWorkRecordChanges
+```
+
+`config.js` 中确认：
+
+```js
+CLOUDBASE_PULL_FN: 'pullWorkRecordChanges',
+```
+
+未部署时客户端会回退到直连数据库增量查询，但空拉取时不会用本机时间推进游标。

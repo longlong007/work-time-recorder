@@ -340,8 +340,8 @@ const DataStore = (function () {
         return SyncEngine.migrateLocalToCloud(strategy, options);
     }
 
-    async function syncNow() {
-        return SyncEngine.syncNow();
+    async function syncNow(options) {
+        return SyncEngine.syncNow(options);
     }
 
     function onSyncStatusChange(callback) {

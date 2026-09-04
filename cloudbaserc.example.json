@@ -8,6 +8,13 @@
       "runtime": "Nodejs18.15",
       "memorySize": 256,
       "handler": "index.main"
+    },
+    {
+      "name": "pullWorkRecordChanges",
+      "timeout": 60,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "handler": "index.main"
     }
   ]
 }
