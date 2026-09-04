@@ -25,6 +25,7 @@
       "script.js",
       "auth.js",
       "data-store.js",
+      "sync-logic.js",
       "sync-engine.js",
       "cloud-ui.js",
       "stats-charts.js",

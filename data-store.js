@@ -188,7 +188,19 @@ const DataStore = (function () {
         const all = [...existing, ...normalized];
         all.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
         writeRawRecords(all);
-        normalized.forEach(queueRecordUpsert);
+        if (Auth.isLoggedIn() && APP_CONFIG.isCloudEnabled()) {
+            if (typeof SyncEngine.queueOps === 'function') {
+                SyncEngine.queueOps(
+                    normalized.map((record) => ({
+                        type: 'upsert',
+                        id: record.id,
+                        record
+                    }))
+                );
+            } else {
+                normalized.forEach(queueRecordUpsert);
+            }
+        }
         notifyDataChanged();
         return normalized.length;
     }
@@ -336,6 +348,16 @@ const DataStore = (function () {
         return getAllRecordsRaw().length > 0;
     }
 
+    function ensureUniqueIds() {
+        const records = readRawRecords();
+        const result = SyncLogic.reassignDuplicateIds(records, generateId);
+        if (result.reassigned > 0) {
+            writeRawRecords(result.records.map(normalizeRecord));
+            notifyDataChanged();
+        }
+        return result;
+    }
+
     async function migrateLocalToCloud(strategy, options) {
         return SyncEngine.migrateLocalToCloud(strategy, options);
     }
@@ -375,6 +397,7 @@ const DataStore = (function () {
         saveCurrentRecord,
         clearCurrentRecord,
         hasLocalRecords,
+        ensureUniqueIds,
         migrateLocalToCloud,
         syncNow,
         onSyncStatusChange,

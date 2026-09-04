@@ -111,8 +111,10 @@ CLOUDBASE_BATCH_FN: 'batchUpsertWorkRecords',
 
 1. 强制刷新页面（`Cmd+Shift+R`）清 Service Worker 缓存
 2. 登录后点「立即同步」
-3. Network 面板应看到 `callFunction`（批量上传场景）或常规同步请求
-4. 不应再出现 6000+ 条 database 写请求
+3. 状态栏应出现「同步中 x/y」，完成后为「已同步」
+4. 几个月前未入队的本地记录也会被差集补传；DevTools 控制台会打印 `补传差集：本地 n，云端 m，待上传 k`
+5. Network 面板应看到 `callFunction`（批量上传场景）或常规同步请求
+6. 不应再出现 6000+ 条 database 写请求
 
 ## 9. 部署增量拉取云函数（推荐，修时钟偏差）
 

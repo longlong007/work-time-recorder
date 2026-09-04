@@ -345,6 +345,14 @@ const CloudUI = (function () {
 
         DataStore.onSyncStatusChange(updateSyncStatus);
 
+        if (typeof SyncEngine.onUploadProgress === 'function') {
+            SyncEngine.onUploadProgress((done, total) => {
+                const syncStatus = $('syncStatus');
+                if (!syncStatus || !total) return;
+                syncStatus.textContent = `同步中 ${done}/${total}`;
+            });
+        }
+
         const loginBtn = $('loginBtn');
         const logoutBtn = $('logoutBtn');
         const closeAuthBtn = $('closeAuthModalBtn');
@@ -391,9 +399,23 @@ const CloudUI = (function () {
         if (syncNowBtn) {
             syncNowBtn.addEventListener('click', async () => {
                 syncNowBtn.disabled = true;
-                // 手动同步走全量对账，修复增量游标漏拉后的历史缺口
                 await DataStore.syncNow({ manual: true });
                 refreshAppData();
+                const report = SyncEngine.getLastBackfillReport && SyncEngine.getLastBackfillReport();
+                if (report) {
+                    const lines = [
+                        '同步结果',
+                        `本地 ${report.local} 条（重分配 id ${report.reassigned}）`,
+                        `云端 ${report.cloud} 条`,
+                        `待上传 ${report.missing} 条`
+                    ];
+                    if (report.missing > 0) {
+                        lines.push(`已确认落库 ${report.verified || 0} 条`);
+                        if (report.stillMissing) lines.push(`仍未写入 ${report.stillMissing} 条`);
+                    }
+                    if (report.error) lines.push(`错误：${report.error}`);
+                    alert(lines.join('\n'));
+                }
             });
         }
 
