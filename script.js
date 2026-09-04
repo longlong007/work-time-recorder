@@ -31,6 +31,18 @@ const importFileInput = document.getElementById('importFileInput');
 const filterDate = document.getElementById('filterDate');
 const filterBtn = document.getElementById('filterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
+const todoWorkSelect = document.getElementById('todoWorkSelect');
+const todoList = document.getElementById('todoList');
+const todoTitleInput = document.getElementById('todoTitleInput');
+const todoAddBtn = document.getElementById('todoAddBtn');
+const todoExportBtn = document.getElementById('todoExportBtn');
+const todoImportBtn = document.getElementById('todoImportBtn');
+const todoImportFileInput = document.getElementById('todoImportFileInput');
+const todoClearBtn = document.getElementById('todoClearBtn');
+const todoFilterDate = document.getElementById('todoFilterDate');
+const todoFilterBtn = document.getElementById('todoFilterBtn');
+const todoResetFilterBtn = document.getElementById('todoResetFilterBtn');
+const todoPanelTitle = document.getElementById('todoPanelTitle');
 
 const STATS_SUMMARY_GROUPS = [
     { mode: 'work', ids: ['todayWorkTotal', 'weekWorkTotal', 'monthWorkTotal'] },
@@ -109,6 +121,8 @@ function init() {
     loadCurrentRecord();
     updateDisplay();
     renderHistory();
+    renderTodos();
+    refreshTodoWorkSelect();
     updateStatistics();
     startClock();
     loadTags();
@@ -124,6 +138,7 @@ function init() {
     
     // 设置默认筛选日期为今天（使用本地时间）
     filterDate.value = getLocalDateString(new Date());
+    initTodos();
 
     workNameInput.addEventListener('input', syncQuickTagSelection);
 }
@@ -977,13 +992,14 @@ function initRightPanelView() {
     const tabs = document.querySelectorAll('.right-panel-tab');
     const panels = {
         history: document.getElementById('rightPanelHistory'),
+        todos: document.getElementById('rightPanelTodos'),
         stats: document.getElementById('rightPanelStats'),
     };
     if (!tabs.length || !panels.history || !panels.stats) return;
 
     const savedView = localStorage.getItem(RIGHT_PANEL_VIEW_KEY);
-    if (savedView === 'stats') {
-        switchRightPanelView('stats', tabs, panels);
+    if (savedView === 'stats' || savedView === 'todos') {
+        switchRightPanelView(savedView, tabs, panels);
     }
 
     tabs.forEach((tab) => {
@@ -1006,6 +1022,9 @@ function switchRightPanelView(view, tabs, panels) {
     if (view === 'stats' && typeof StatsCharts !== 'undefined') {
         requestAnimationFrame(() => StatsCharts.refresh());
     }
+    if (view === 'todos') {
+        renderTodos();
+    }
 }
 
 // ==================== 日期工具函数 ====================
@@ -1025,7 +1044,238 @@ function escapeHtml(text) {
 }
 
 function escapeAttr(text) {
-    return escapeHtml(text).replace('"', '&quot;');
+    return escapeHtml(text).replace(/"/g, '&quot;');
+}
+
+// ==================== 待办 ====================
+
+let todoDateValue = null;
+
+function getTodoViewDate() {
+    return todoDateValue || getLocalDateString(new Date());
+}
+
+function isTodoViewToday() {
+    return getTodoViewDate() === getLocalDateString(new Date());
+}
+
+function refreshTodoWorkSelect() {
+    if (!todoWorkSelect) return;
+    const today = getLocalDateString(new Date());
+    const options = TodoModel.workNameOptions(DataStore.getTodos(), today);
+    const previous = todoWorkSelect.value;
+
+    while (todoWorkSelect.firstChild) {
+        todoWorkSelect.removeChild(todoWorkSelect.firstChild);
+    }
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '今日待办';
+    todoWorkSelect.appendChild(placeholder);
+    options.forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.title;
+        option.textContent = item.title;
+        todoWorkSelect.appendChild(option);
+    });
+    todoWorkSelect.disabled = options.length === 0;
+    // 划掉/删除当前项后必须显式清空，否则浏览器会把旧 value 继续显示成选项
+    todoWorkSelect.value = options.some((item) => item.title === previous) ? previous : '';
+}
+
+function renderTodos() {
+    if (!todoList) return;
+    const dateStr = getTodoViewDate();
+    if (todoPanelTitle) {
+        todoPanelTitle.textContent = isTodoViewToday() ? '今日待办' : `${dateStr} 待办`;
+    }
+    const items = DataStore.getTodosByDate(dateStr);
+    if (items.length === 0) {
+        todoList.innerHTML = '<div class="empty-state">暂无待办</div>';
+        return;
+    }
+
+    todoList.innerHTML = items.map((todo) => `
+        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}">
+            <input type="checkbox" class="todo-item-check" ${todo.done ? 'checked' : ''} aria-label="完成">
+            <input type="text" class="todo-item-title" value="${escapeAttr(todo.title)}" maxlength="80" aria-label="待办标题">
+            <button type="button" class="todo-item-delete" title="删除此待办">🗑️</button>
+        </div>
+    `).join('');
+
+    todoList.querySelectorAll('.todo-item').forEach((row) => {
+        const id = row.dataset.id;
+        const check = row.querySelector('.todo-item-check');
+        const titleInput = row.querySelector('.todo-item-title');
+        const delBtn = row.querySelector('.todo-item-delete');
+
+        check.addEventListener('change', () => {
+            DataStore.updateTodo(id, { done: check.checked });
+        });
+
+        const commitTitle = () => {
+            const next = titleInput.value.trim();
+            const current = DataStore.findTodo(id);
+            if (!next) {
+                titleInput.value = current ? current.title : '';
+                return;
+            }
+            if (current && next !== current.title) {
+                try {
+                    DataStore.updateTodo(id, { title: next });
+                } catch (e) {
+                    alert(e.message || '标题无效');
+                    titleInput.value = current.title;
+                }
+            }
+        };
+
+        titleInput.addEventListener('blur', commitTitle);
+        titleInput.addEventListener('change', commitTitle);
+        titleInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                titleInput.blur();
+            }
+        });
+
+        delBtn.addEventListener('click', () => {
+            if (confirm('确定删除这条待办？')) {
+                DataStore.deleteTodo(id);
+            }
+        });
+    });
+}
+
+function addTodoFromInput() {
+    if (!todoTitleInput) return;
+    const title = todoTitleInput.value.trim();
+    if (!title) return;
+    try {
+        DataStore.saveTodo({
+            date: getTodoViewDate(),
+            title
+        });
+        todoTitleInput.value = '';
+        todoTitleInput.focus();
+    } catch (e) {
+        alert(e.message || '添加失败');
+    }
+}
+
+function exportTodosToCSV() {
+    const todos = DataStore.getTodos();
+    if (todos.length === 0) {
+        alert('没有可导出的待办');
+        return;
+    }
+    const csvContent = TodoModel.toTodoCsv(todos);
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `待办_${getLocalDateString(new Date())}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function importTodosFromCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const FILE_MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > FILE_MAX_SIZE) {
+        alert('CSV 文件过大，请控制在 2MB 以内');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        try {
+            const parsed = TodoModel.parseTodoCsv(e.target.result);
+            if (parsed.length === 0) {
+                alert('未能导入任何有效待办，请检查 CSV 格式\n\n期望：日期,标题,完成,排序');
+                return;
+            }
+            if (!confirm(`将导入 ${parsed.length} 条待办，是否继续？`)) {
+                return;
+            }
+            const count = DataStore.importTodos(parsed);
+            alert(`成功导入 ${count} 条待办！`);
+        } catch (error) {
+            alert('导入 CSV 失败: ' + error.message);
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+    event.target.value = '';
+}
+
+function clearTodosOnViewDate() {
+    const dateStr = getTodoViewDate();
+    const count = DataStore.getTodosByDate(dateStr).length;
+    if (count === 0) {
+        alert('这一天没有待办');
+        return;
+    }
+    if (!confirm(`确定清空 ${dateStr} 的 ${count} 条待办吗？此操作不可恢复！`)) {
+        return;
+    }
+    DataStore.clearTodosByDate(dateStr);
+}
+
+function initTodos() {
+    todoDateValue = getLocalDateString(new Date());
+    if (todoFilterDate) {
+        todoFilterDate.value = todoDateValue;
+    }
+
+    if (todoAddBtn) todoAddBtn.addEventListener('click', addTodoFromInput);
+    if (todoTitleInput) {
+        todoTitleInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTodoFromInput();
+            }
+        });
+    }
+    if (todoExportBtn) todoExportBtn.addEventListener('click', exportTodosToCSV);
+    if (todoImportBtn) todoImportBtn.addEventListener('click', () => todoImportFileInput && todoImportFileInput.click());
+    if (todoImportFileInput) todoImportFileInput.addEventListener('change', importTodosFromCSV);
+    if (todoClearBtn) todoClearBtn.addEventListener('click', clearTodosOnViewDate);
+    if (todoFilterBtn) {
+        todoFilterBtn.addEventListener('click', () => {
+            todoDateValue = (todoFilterDate && todoFilterDate.value) || getLocalDateString(new Date());
+            renderTodos();
+        });
+    }
+    if (todoResetFilterBtn) {
+        todoResetFilterBtn.addEventListener('click', () => {
+            todoDateValue = getLocalDateString(new Date());
+            if (todoFilterDate) todoFilterDate.value = todoDateValue;
+            renderTodos();
+        });
+    }
+    if (todoWorkSelect) {
+        todoWorkSelect.addEventListener('change', () => {
+            if (!todoWorkSelect.value) return;
+            workNameInput.value = todoWorkSelect.value;
+            workNameInput.dispatchEvent(new Event('input'));
+            workNameInput.focus();
+        });
+    }
+    if (workNameInput) {
+        workNameInput.addEventListener('input', () => {
+            if (todoWorkSelect && todoWorkSelect.value && todoWorkSelect.value !== workNameInput.value) {
+                todoWorkSelect.value = '';
+            }
+        });
+    }
+
+    renderTodos();
+    refreshTodoWorkSelect();
 }
 
 // ==================== 标签管理功能 ====================
@@ -1427,6 +1677,8 @@ async function bootstrap() {
 
     DataStore.onDataChanged(() => {
         renderHistory();
+        renderTodos();
+        refreshTodoWorkSelect();
         updateStatistics();
         renderQuickTags();
         renderAlarmPresets();

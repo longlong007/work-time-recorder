@@ -213,6 +213,7 @@ your-domain.com
 | 集合名 | 文档 ID 规则 | 用途 |
 |--------|-------------|------|
 | `work_records` | 记录 UUID | 工时记录 |
+| `todos` | 待办 UUID | 按天待办 |
 | `user_settings` | 用户 `uid` | 标签、主题、闹钟预设 |
 | `active_sessions` | 用户 `uid` | 进行中计时（实时同步） |
 

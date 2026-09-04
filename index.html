@@ -76,12 +76,17 @@
                     <div class="work-name-section" id="workNameSection">
                         <div class="input-row">
                             <span class="input-label">工作名称</span>
-                            <input
-                                type="text"
-                                id="workNameInput"
-                                class="work-name-input"
-                                placeholder="请输入工作内容名称（可选）"
-                                maxlength="50">
+                            <div class="work-name-fields">
+                                <select id="todoWorkSelect" class="todo-work-select" aria-label="选择今日待办">
+                                    <option value="">今日待办</option>
+                                </select>
+                                <input
+                                    type="text"
+                                    id="workNameInput"
+                                    class="work-name-input"
+                                    placeholder="请输入工作内容名称（可选）"
+                                    maxlength="50">
+                            </div>
                         </div>
                     </div>
 
@@ -99,7 +104,7 @@
                     <div class="action-buttons">
                         <button type="button" class="btn btn-primary" id="startBtn">
                             <span>▶</span>
-                            开始工作
+                            开始
                         </button>
                         <button type="button" class="btn btn-danger" id="stopBtn" disabled>
                             <span>⏸</span>
@@ -161,6 +166,7 @@
 
                     <div class="right-panel-tabs">
                         <button type="button" class="right-panel-tab active" data-view="history">📋 历史记录</button>
+                        <button type="button" class="right-panel-tab" data-view="todos">✅ 待办</button>
                         <button type="button" class="right-panel-tab" data-view="stats">📊 统计</button>
                     </div>
 
@@ -190,6 +196,42 @@
                         </div>
                     </div>
                     </div><!-- /rightPanelHistory -->
+
+                    <div class="right-panel right-panel-todos" id="rightPanelTodos">
+                    <div class="history-section todo-section">
+                        <div class="history-header">
+                            <div class="history-title">
+                                <span>✅</span>
+                                <span id="todoPanelTitle">待办</span>
+                            </div>
+                            <div class="history-actions">
+                                <button type="button" class="btn btn-primary btn-sm" id="todoExportBtn">📤 导出</button>
+                                <button type="button" class="btn btn-success btn-sm" id="todoImportBtn">📥 导入</button>
+                                <button type="button" class="btn btn-danger btn-sm" id="todoClearBtn">清空</button>
+                            </div>
+                        </div>
+
+                        <div class="filter-bar">
+                            <input type="date" id="todoFilterDate" class="date-filter">
+                            <button type="button" class="btn btn-primary btn-sm" id="todoFilterBtn">筛选</button>
+                            <button type="button" class="btn btn-neutral btn-sm" id="todoResetFilterBtn">今天</button>
+                        </div>
+
+                        <div class="todo-add-row">
+                            <input
+                                type="text"
+                                id="todoTitleInput"
+                                class="todo-title-input"
+                                placeholder="添加待办，回车保存"
+                                maxlength="80">
+                            <button type="button" class="btn btn-primary btn-sm" id="todoAddBtn">添加</button>
+                        </div>
+
+                        <div class="todo-list" id="todoList">
+                            <div class="empty-state">暂无待办</div>
+                        </div>
+                    </div>
+                    </div><!-- /rightPanelTodos -->
 
                     <div class="right-panel right-panel-stats" id="rightPanelStats">
                     <!-- 统计区域 -->
@@ -429,15 +471,17 @@
 
         <!-- 隐藏的文件输入元素 -->
         <input type="file" id="importFileInput" accept=".csv" style="display: none;">
+        <input type="file" id="todoImportFileInput" accept=".csv" style="display: none;">
     </div>
 
-    <script src="config.js?v=20260713"></script>
+    <script src="config.js?v=20260904"></script>
     <script src="vendor/cloudbase.js"></script>
     <script src="auth.js?v=20260720a"></script>
-    <script src="data-store.js?v=20260827b"></script>
-    <script src="sync-engine.js?v=20260827b"></script>
+    <script src="todo-model.js?v=20260904c"></script>
+    <script src="data-store.js?v=20260904"></script>
+    <script src="sync-engine.js?v=20260904"></script>
     <script src="cloud-ui.js?v=20260827b"></script>
     <script src="stats-charts.js?v=20260820c"></script>
-    <script src="script.js?v=20260820c"></script>
+    <script src="script.js?v=20260904c"></script>
 </body>
 </html>

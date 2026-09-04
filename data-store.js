@@ -1,6 +1,7 @@
 // 数据存储抽象层 — localStorage 缓存 + 云端同步队列
 const DataStore = (function () {
     const STORAGE_KEY = 'workTimeRecords';
+    const TODOS_STORAGE_KEY = 'todos';
     const TAGS_STORAGE_KEY = 'workTags';
     const ALARM_PRESETS_KEY = 'alarmPresets';
     const CURRENT_RECORD_KEY = 'currentRecord';
@@ -193,6 +194,177 @@ const DataStore = (function () {
         return normalized.length;
     }
 
+    function queueTodoUpsert(todo) {
+        if (Auth.isLoggedIn() && APP_CONFIG.isCloudEnabled()) {
+            SyncEngine.queueOp({
+                type: 'todo_upsert',
+                id: todo.id,
+                record: todo
+            });
+            SyncEngine.scheduleSync();
+        }
+    }
+
+    function queueTodoDelete(todo) {
+        if (Auth.isLoggedIn() && APP_CONFIG.isCloudEnabled()) {
+            SyncEngine.queueOp({
+                type: 'todo_delete',
+                id: todo.id,
+                record: todo
+            });
+            SyncEngine.scheduleSync();
+        }
+    }
+
+    function readRawTodos() {
+        const raw = localStorage.getItem(TODOS_STORAGE_KEY);
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map((t) => {
+                try {
+                    return TodoModel.normalizeTodo(t);
+                } catch (e) {
+                    return null;
+                }
+            }).filter(Boolean);
+        } catch (e) {
+            console.warn('待办数据损坏，已重置');
+            localStorage.removeItem(TODOS_STORAGE_KEY);
+            return [];
+        }
+    }
+
+    function writeRawTodos(todos) {
+        localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(todos));
+    }
+
+    function getTodos() {
+        return readRawTodos().filter((t) => !t.deletedAt);
+    }
+
+    function getAllTodosIncludingDeleted() {
+        return readRawTodos();
+    }
+
+    function getTodosByDate(dateStr) {
+        return TodoModel.todosForDate(getTodos(), dateStr);
+    }
+
+    function setTodosInternal(todos) {
+        writeRawTodos(
+            (todos || [])
+                .map((t) => {
+                    try {
+                        return TodoModel.normalizeTodo(t);
+                    } catch (e) {
+                        return null;
+                    }
+                })
+                .filter(Boolean)
+        );
+    }
+
+    function saveTodo(todo) {
+        const existing = getTodos();
+        const date = todo.date || TodoModel.localDateString(new Date());
+        const normalized = TodoModel.normalizeTodo({
+            ...todo,
+            date,
+            order: todo.order == null ? TodoModel.nextOrder(existing, date) : todo.order,
+            updatedAt: new Date().toISOString()
+        });
+        existing.push(normalized);
+        writeRawTodos(existing);
+        queueTodoUpsert(normalized);
+        notifyDataChanged();
+        return normalized;
+    }
+
+    function updateTodo(id, patch) {
+        const todos = readRawTodos();
+        const idx = todos.findIndex((t) => t.id === id);
+        if (idx === -1) return null;
+        const updated = TodoModel.normalizeTodo({
+            ...todos[idx],
+            ...patch,
+            id: todos[idx].id,
+            updatedAt: new Date().toISOString()
+        });
+        todos[idx] = updated;
+        writeRawTodos(todos.filter((t) => !t.deletedAt));
+        queueTodoUpsert(updated);
+        notifyDataChanged();
+        return updated;
+    }
+
+    function findTodo(id) {
+        return getTodos().find((t) => t.id === id) || null;
+    }
+
+    function deleteTodo(id) {
+        const todos = readRawTodos();
+        const todo = todos.find((t) => t.id === id);
+        if (!todo) return false;
+        const deleted = {
+            ...todo,
+            deletedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        writeRawTodos(todos.filter((t) => t.id !== id));
+        queueTodoDelete(deleted);
+        notifyDataChanged();
+        return true;
+    }
+
+    function importTodos(newTodos) {
+        const existing = getTodos();
+        const normalized = [];
+        (newTodos || []).forEach((t) => {
+            try {
+                normalized.push(
+                    TodoModel.normalizeTodo({
+                        ...t,
+                        id: TodoModel.generateId(),
+                        updatedAt: new Date().toISOString()
+                    })
+                );
+            } catch (e) {
+                // skip invalid rows
+            }
+        });
+        writeRawTodos(existing.concat(normalized));
+        normalized.forEach(queueTodoUpsert);
+        notifyDataChanged();
+        return normalized.length;
+    }
+
+    function clearTodosByDate(dateStr) {
+        const todos = getTodos();
+        const now = new Date().toISOString();
+        const kept = [];
+        const removed = [];
+        todos.forEach((t) => {
+            if (t.date === dateStr) {
+                removed.push({ ...t, deletedAt: now, updatedAt: now });
+            } else {
+                kept.push(t);
+            }
+        });
+        writeRawTodos(kept);
+        if (Auth.isLoggedIn() && APP_CONFIG.isCloudEnabled() && removed.length > 0) {
+            SyncEngine.queueOp({
+                type: 'todo_clear_all',
+                id: `todo_clear_${dateStr}`,
+                records: removed
+            });
+            SyncEngine.scheduleSync();
+        }
+        notifyDataChanged();
+        return removed.length;
+    }
+
     function clearAllRecords() {
         const records = readRawRecords().filter((r) => !r.deletedAt);
         const now = new Date().toISOString();
@@ -333,7 +505,7 @@ const DataStore = (function () {
     }
 
     function hasLocalRecords() {
-        return getAllRecordsRaw().length > 0;
+        return getAllRecordsRaw().length > 0 || getTodos().length > 0;
     }
 
     async function migrateLocalToCloud(strategy, options) {
@@ -362,6 +534,17 @@ const DataStore = (function () {
         deleteRecord,
         importRecords,
         clearAllRecords,
+        normalizeTodo: TodoModel.normalizeTodo,
+        getTodos,
+        getAllTodosIncludingDeleted,
+        getTodosByDate,
+        setTodosInternal,
+        saveTodo,
+        updateTodo,
+        findTodo,
+        deleteTodo,
+        importTodos,
+        clearTodosByDate,
         getTags,
         saveTags,
         getAlarmPresets,

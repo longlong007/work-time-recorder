@@ -1,6 +1,18 @@
 const cloud = require('@cloudbase/node-sdk');
 
 const BATCH_SIZE = 100;
+const ALLOWED_COLLECTIONS = {
+    work_records: {
+        name: 'work_records',
+        normalize: normalizeRecord,
+        toDoc: recordToDoc
+    },
+    todos: {
+        name: 'todos',
+        normalize: normalizeTodo,
+        toDoc: todoToDoc
+    }
+};
 
 function isDuplicateError(err) {
     const code = err && (err.code || err.errCode || err.error);
@@ -38,8 +50,54 @@ function normalizeRecord(record) {
     };
 }
 
-async function removeOne(db, uid, recordId) {
-    const coll = db.collection('work_records');
+function recordToDoc(record) {
+    return {
+        startTime: record.startTime,
+        endTime: record.endTime,
+        duration: record.duration,
+        workName: record.workName || '',
+        updatedAt: record.updatedAt,
+        deletedAt: null
+    };
+}
+
+function normalizeTodo(todo) {
+    if (!todo || !todo.id) {
+        throw new Error('待办缺少 id');
+    }
+    return {
+        id: todo.id,
+        date: todo.date,
+        title: todo.title || '',
+        done: Boolean(todo.done),
+        order: Number.isFinite(Number(todo.order)) ? Number(todo.order) : 0,
+        updatedAt: todo.updatedAt,
+        deletedAt: todo.deletedAt || null
+    };
+}
+
+function todoToDoc(todo) {
+    return {
+        date: todo.date,
+        title: todo.title || '',
+        done: Boolean(todo.done),
+        order: Number.isFinite(Number(todo.order)) ? Number(todo.order) : 0,
+        updatedAt: todo.updatedAt,
+        deletedAt: null
+    };
+}
+
+function resolveCollection(name) {
+    const key = name || 'work_records';
+    const config = ALLOWED_COLLECTIONS[key];
+    if (!config) {
+        throw new Error(`不支持的集合: ${key}`);
+    }
+    return config;
+}
+
+async function removeOne(db, uid, collectionName, recordId) {
+    const coll = db.collection(collectionName);
     let doc = null;
     try {
         const getRes = await coll.doc(recordId).get();
@@ -49,7 +107,6 @@ async function removeOne(db, uid, recordId) {
         throw e;
     }
 
-    // 文档已不存在，视为删除成功
     if (!doc) return;
 
     if (doc._openid && doc._openid !== uid) {
@@ -64,16 +121,9 @@ async function removeOne(db, uid, recordId) {
     }
 }
 
-async function upsertOne(db, uid, record) {
-    const coll = db.collection('work_records');
-    const payload = {
-        startTime: record.startTime,
-        endTime: record.endTime,
-        duration: record.duration,
-        workName: record.workName || '',
-        updatedAt: record.updatedAt,
-        deletedAt: null
-    };
+async function upsertOne(db, uid, config, record) {
+    const coll = db.collection(config.name);
+    const payload = config.toDoc(record);
 
     try {
         await coll.doc(record.id).update(payload);
@@ -90,35 +140,29 @@ async function upsertOne(db, uid, record) {
     }
 }
 
-async function processOne(db, uid, record) {
+async function processOne(db, uid, config, record) {
     if (record.deletedAt) {
-        await removeOne(db, uid, record.id);
+        await removeOne(db, uid, config.name, record.id);
         return;
     }
-    await upsertOne(db, uid, record);
+    await upsertOne(db, uid, config, record);
 }
 
-async function upsertChunk(db, uid, chunk, assumeNew) {
+async function upsertChunk(db, uid, config, chunk, assumeNew) {
     let uploaded = 0;
     const failed = [];
 
     const toDelete = chunk.filter((r) => r.deletedAt);
     const toUpsert = chunk.filter((r) => !r.deletedAt);
 
-    // 仅「全新插入」批可走批量 add；删除与更新必须逐条
     if (assumeNew && toUpsert.length > 1 && toDelete.length === 0) {
         try {
             const docs = toUpsert.map((record) => ({
                 _id: record.id,
                 _openid: uid,
-                startTime: record.startTime,
-                endTime: record.endTime,
-                duration: record.duration,
-                workName: record.workName || '',
-                updatedAt: record.updatedAt,
-                deletedAt: null
+                ...config.toDoc(record)
             }));
-            await db.collection('work_records').add(docs);
+            await db.collection(config.name).add(docs);
             return { uploaded: toUpsert.length, failed: [] };
         } catch (e) {
             console.warn('batch add fallback to single upsert:', e.message || e);
@@ -127,7 +171,7 @@ async function upsertChunk(db, uid, chunk, assumeNew) {
 
     for (const record of chunk) {
         try {
-            await processOne(db, uid, record);
+            await processOne(db, uid, config, record);
             uploaded += 1;
         } catch (e) {
             failed.push({ id: record.id, error: (e && e.message) || String(e) });
@@ -146,6 +190,13 @@ exports.main = async (event) => {
         return { ok: false, error: '未登录，无法批量上传' };
     }
 
+    let config;
+    try {
+        config = resolveCollection(event && event.collection);
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+
     const rawRecords = event && event.records;
     if (!Array.isArray(rawRecords) || rawRecords.length === 0) {
         return { ok: true, uploaded: 0, failed: [] };
@@ -159,7 +210,7 @@ exports.main = async (event) => {
         const slice = rawRecords.slice(i, i + BATCH_SIZE);
         let chunk;
         try {
-            chunk = slice.map(normalizeRecord);
+            chunk = slice.map(config.normalize);
         } catch (e) {
             slice.forEach((record) => {
                 failed.push({ id: (record && record.id) || 'unknown', error: e.message });
@@ -167,10 +218,10 @@ exports.main = async (event) => {
             continue;
         }
 
-        const result = await upsertChunk(db, uid, chunk, assumeNew);
+        const result = await upsertChunk(db, uid, config, chunk, assumeNew);
         uploaded += result.uploaded;
         failed.push(...result.failed);
     }
 
-    return { ok: true, uploaded, failed };
+    return { ok: true, uploaded, failed, collection: config.name };
 };

@@ -31,6 +31,45 @@ function mapRecord(doc) {
     };
 }
 
+function mapTodo(doc) {
+    return {
+        id: doc._id || doc.id,
+        date: doc.date,
+        title: doc.title || '',
+        done: Boolean(doc.done),
+        order: Number.isFinite(Number(doc.order)) ? Number(doc.order) : 0,
+        updatedAt: toIso(doc.updatedAt) || doc.updatedAt,
+        deletedAt: doc.deletedAt ? toIso(doc.deletedAt) || doc.deletedAt : null
+    };
+}
+
+async function pullCollection(db, _, uid, collectionName, since, mapper) {
+    const items = [];
+    let skip = 0;
+
+    while (items.length < MAX_RECORDS) {
+        const result = await db
+            .collection(collectionName)
+            .where({
+                _openid: uid,
+                updatedAt: _.gt(since)
+            })
+            .orderBy('updatedAt', 'asc')
+            .skip(skip)
+            .limit(PAGE_SIZE)
+            .get();
+
+        const docs = extractDocs(result);
+        if (docs.length === 0) break;
+
+        docs.forEach((doc) => items.push(mapper(doc)));
+        if (docs.length < PAGE_SIZE) break;
+        skip += docs.length;
+    }
+
+    return items;
+}
+
 /**
  * 增量拉取工时变更 + 返回服务端时间（A+D）
  * event.since: ISO 游标（客户端 lastSyncedAt）
@@ -45,7 +84,7 @@ exports.main = async (event) => {
     const serverNow = new Date().toISOString();
 
     if (!uid) {
-        return { ok: false, error: '未登录，无法拉取变更', serverNow, records: [] };
+        return { ok: false, error: '未登录，无法拉取变更', serverNow, records: [], todos: [] };
     }
 
     const overlapMs =
@@ -61,34 +100,21 @@ exports.main = async (event) => {
         since = '1970-01-01T00:00:00.000Z';
     }
 
-    const records = [];
-    let skip = 0;
+    const records = await pullCollection(db, _, uid, 'work_records', since, mapRecord);
 
-    while (records.length < MAX_RECORDS) {
-        const result = await db
-            .collection('work_records')
-            .where({
-                _openid: uid,
-                updatedAt: _.gt(since)
-            })
-            .orderBy('updatedAt', 'asc')
-            .skip(skip)
-            .limit(PAGE_SIZE)
-            .get();
-
-        const docs = extractDocs(result);
-        if (docs.length === 0) break;
-
-        docs.forEach((doc) => records.push(mapRecord(doc)));
-        if (docs.length < PAGE_SIZE) break;
-        skip += docs.length;
+    let todos = [];
+    try {
+        todos = await pullCollection(db, _, uid, 'todos', since, mapTodo);
+    } catch (e) {
+        console.warn('pull todos failed:', e && e.message ? e.message : e);
     }
 
     return {
         ok: true,
         serverNow,
         since,
-        truncated: records.length >= MAX_RECORDS,
-        records
+        truncated: records.length >= MAX_RECORDS || todos.length >= MAX_RECORDS,
+        records,
+        todos
     };
 };

@@ -141,6 +141,24 @@ const SyncEngine = (function () {
         };
     }
 
+    function todoForCloud(todo) {
+        return {
+            date: todo.date,
+            title: todo.title || '',
+            done: Boolean(todo.done),
+            order: Number.isFinite(Number(todo.order)) ? Number(todo.order) : 0,
+            updatedAt: todo.updatedAt,
+            deletedAt: todo.deletedAt || null
+        };
+    }
+
+    function todoPayloadForCloud(todo) {
+        return {
+            id: todo.id,
+            ...todoForCloud(todo)
+        };
+    }
+
     function notifyUploadProgress(done, total) {
         uploadProgressListeners.forEach((cb) => {
             try {
@@ -182,6 +200,33 @@ const SyncEngine = (function () {
         };
     }
 
+    function normalizePulledTodo(raw) {
+        if (!raw) return null;
+        const id = raw.id || raw._id;
+        if (!id) return null;
+        try {
+            return TodoModel.normalizeTodo({
+                id,
+                date: raw.date,
+                title: raw.title || '',
+                done: raw.done,
+                order: raw.order,
+                updatedAt: raw.updatedAt,
+                deletedAt: raw.deletedAt || null
+            });
+        } catch (e) {
+            return {
+                id,
+                date: raw.date,
+                title: raw.title || '',
+                done: Boolean(raw.done),
+                order: Number.isFinite(Number(raw.order)) ? Number(raw.order) : 0,
+                updatedAt: raw.updatedAt,
+                deletedAt: raw.deletedAt || null
+            };
+        }
+    }
+
     function maxUpdatedAtIso(records) {
         let maxMs = 0;
         (records || []).forEach((r) => {
@@ -207,6 +252,18 @@ const SyncEngine = (function () {
             endTime: doc.endTime,
             duration: doc.duration,
             workName: doc.workName || '',
+            updatedAt: doc.updatedAt,
+            deletedAt: doc.deletedAt || null
+        };
+    }
+
+    function docToTodo(doc) {
+        return {
+            id: doc._id,
+            date: doc.date,
+            title: doc.title || '',
+            done: Boolean(doc.done),
+            order: Number.isFinite(Number(doc.order)) ? Number(doc.order) : 0,
             updatedAt: doc.updatedAt,
             deletedAt: doc.deletedAt || null
         };
@@ -323,7 +380,8 @@ const SyncEngine = (function () {
                 result = await withTimeout(
                     Auth.callFunction(fnName, {
                         records: chunk.map(recordPayloadForCloud),
-                        assumeNew
+                        assumeNew,
+                        collection: 'work_records'
                     }),
                     'callFunction'
                 );
@@ -406,8 +464,161 @@ const SyncEngine = (function () {
         return uploadWorkRecordsClient(db, records, { assumeNew, onProgress });
     }
 
+    async function uploadTodosViaCloudFunction(todos, { assumeNew = false, onProgress } = {}) {
+        const failed = [];
+        let uploaded = 0;
+        let networkFailure = false;
+        const total = todos.length;
+        const fnName = getBatchFunctionName();
+
+        for (let i = 0; i < todos.length; i += CLOUD_BATCH_SIZE) {
+            const chunk = todos.slice(i, i + CLOUD_BATCH_SIZE);
+            let result;
+            try {
+                result = await withTimeout(
+                    Auth.callFunction(fnName, {
+                        records: chunk.map(todoPayloadForCloud),
+                        assumeNew,
+                        collection: 'todos'
+                    }),
+                    'callFunction'
+                );
+            } catch (e) {
+                console.error('Cloud function todo batch upload failed:', e);
+                if (isLikelyNetworkError(e)) networkFailure = true;
+                chunk.forEach((todo) => failed.push(todo));
+                continue;
+            }
+
+            if (!result || result.ok === false) {
+                throw new Error((result && result.error) || '云函数批量上传待办失败');
+            }
+
+            uploaded += result.uploaded || 0;
+            if (Array.isArray(result.failed) && result.failed.length > 0) {
+                const failedIds = new Set(result.failed.map((f) => f.id));
+                chunk.forEach((todo) => {
+                    if (failedIds.has(todo.id)) failed.push(todo);
+                });
+            }
+
+            const done = Math.min(i + chunk.length, total);
+            notifyUploadProgress(done, total);
+            if (onProgress) onProgress(done, total);
+        }
+
+        return { uploaded, failed, networkFailure };
+    }
+
+    async function hardDeleteTodo(db, todo) {
+        if (!todo || !todo.id) throw new Error('删除待办缺少 id');
+        const coll = db.collection('todos');
+        const query = whereOwned(todo.id);
+        const removeRes = await withTimeout(coll.where(query).remove(), 'remove');
+        throwIfDbError(removeRes);
+    }
+
+    async function upsertTodo(db, todo, assumeNew = false) {
+        const payload = todoForCloud(todo);
+        const coll = db.collection('todos');
+        const query = whereOwned(todo.id);
+
+        async function addThenUpdateOnDup() {
+            try {
+                const addRes = await withTimeout(coll.add({ _id: todo.id, ...payload }), 'add');
+                throwIfDbError(addRes);
+            } catch (e) {
+                if (!isDuplicateError(e)) throw e;
+                const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
+                throwIfDbError(updateRes);
+                if (getUpdatedCount(updateRes) === 0) {
+                    throw new Error(`待办更新同步失败：${todo.id}`);
+                }
+            }
+        }
+
+        async function updateThenAddOnMiss() {
+            const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
+            throwIfDbError(updateRes);
+            if (getUpdatedCount(updateRes) > 0) return;
+            await addThenUpdateOnDup();
+        }
+
+        return assumeNew ? addThenUpdateOnDup() : updateThenAddOnMiss();
+    }
+
+    async function syncTodoToCloud(db, todo, assumeNew = false) {
+        if (todo.deletedAt) {
+            return hardDeleteTodo(db, todo);
+        }
+        return upsertTodo(db, todo, assumeNew);
+    }
+
+    async function uploadTodosClient(db, todos, { assumeNew = false, onProgress } = {}) {
+        const failed = [];
+        let uploaded = 0;
+        let networkFailure = false;
+        const total = todos.length;
+        if (!todos || todos.length === 0) return { uploaded, failed, networkFailure };
+
+        const results = await runPool(
+            todos,
+            async (todo) => {
+                try {
+                    await syncTodoToCloud(db, todo, assumeNew);
+                    return { ok: true };
+                } catch (e) {
+                    console.error('Upload todo failed:', todo.id, e);
+                    return { ok: false, record: todo, networkFailure: isLikelyNetworkError(e) };
+                }
+            },
+            UPLOAD_CONCURRENCY
+        );
+
+        results.forEach((r, index) => {
+            if (r.ok) uploaded += 1;
+            else {
+                failed.push(r.record);
+                if (r.networkFailure) networkFailure = true;
+            }
+            const done = index + 1;
+            notifyUploadProgress(done, total);
+            if (onProgress) onProgress(done, total);
+        });
+
+        return { uploaded, failed, networkFailure };
+    }
+
+    async function uploadTodosBatched(db, todos, { assumeNew = false, onProgress } = {}) {
+        if (!todos || todos.length === 0) return { uploaded: 0, failed: [], networkFailure: false };
+
+        if (shouldUseCloudBatch(todos)) {
+            try {
+                return await uploadTodosViaCloudFunction(todos, { assumeNew, onProgress });
+            } catch (e) {
+                console.warn('云函数批量上传待办不可用，回退逐条模式:', e.message || e);
+                if (isLikelyNetworkError(e)) {
+                    return { uploaded: 0, failed: todos.slice(), networkFailure: true };
+                }
+            }
+        }
+
+        return uploadTodosClient(db, todos, { assumeNew, onProgress });
+    }
+
     async function fetchAllCloudRecordIds(db) {
         const docs = await fetchAllDocs(db, 'work_records', (query) =>
+            query.where({ _openid: '{openid}' }).field({ deletedAt: true })
+        );
+        const ids = new Set();
+        docs.forEach((doc) => {
+            if (!doc.deletedAt) ids.add(doc._id);
+        });
+        return ids;
+    }
+
+    async function fetchAllCloudTodoIds(db) {
+        const docs = await fetchAllDocs(db, 'todos', (query) =>
             query.where({ _openid: '{openid}' }).field({ deletedAt: true })
         );
         const ids = new Set();
@@ -424,28 +635,53 @@ const SyncEngine = (function () {
         if (backfillDone) return null;
 
         const localRecords = DataStore.getAllRecordsRaw();
-        if (localRecords.length === 0) {
+        const localTodos = DataStore.getTodos();
+        if (localRecords.length === 0 && localTodos.length === 0) {
             backfillDone = true;
             return null;
         }
 
-        let cloudIds;
+        let cloudRecordIds;
+        let cloudTodoIds;
         try {
-            cloudIds = await fetchAllCloudRecordIds(db);
+            cloudRecordIds = localRecords.length > 0 ? await fetchAllCloudRecordIds(db) : new Set();
+            try {
+                cloudTodoIds = localTodos.length > 0 ? await fetchAllCloudTodoIds(db) : new Set();
+            } catch (e) {
+                console.warn('补传待办差集检查失败，下次同步重试', e);
+                cloudTodoIds = null;
+            }
         } catch (e) {
-            // 扫描失败不置位，下次同步再试
             console.warn('补传差集检查失败，下次同步重试', e);
             return null;
         }
 
-        backfillDone = true;
-        // 排除已在 pending 队列的记录：它们已由 pushPendingOps 处理，避免重复上传
-        const pendingIds = new Set(getPendingOps().map((o) => o.id));
-        const missing = localRecords.filter((r) => !cloudIds.has(r.id) && !pendingIds.has(r.id));
-        if (missing.length === 0) return null;
+        if (cloudTodoIds === null) return null;
 
-        console.info(`补传本地记录：${missing.length} 条`);
-        return uploadWorkRecordsBatched(db, missing, { assumeNew: true });
+        backfillDone = true;
+        const pendingIds = new Set(getPendingOps().map((o) => o.id));
+        const missingRecords = localRecords.filter((r) => !cloudRecordIds.has(r.id) && !pendingIds.has(r.id));
+        const missingTodos = localTodos.filter((t) => !cloudTodoIds.has(t.id) && !pendingIds.has(t.id));
+
+        let networkFailure = false;
+        const failed = [];
+
+        if (missingRecords.length > 0) {
+            console.info(`补传本地记录：${missingRecords.length} 条`);
+            const result = await uploadWorkRecordsBatched(db, missingRecords, { assumeNew: true });
+            if (result.networkFailure) networkFailure = true;
+            failed.push(...result.failed);
+        }
+
+        if (missingTodos.length > 0) {
+            console.info(`补传本地待办：${missingTodos.length} 条`);
+            const result = await uploadTodosBatched(db, missingTodos, { assumeNew: true });
+            if (result.networkFailure) networkFailure = true;
+            failed.push(...result.failed);
+        }
+
+        if (failed.length === 0 && !networkFailure) return null;
+        return { failed, networkFailure };
     }
 
     async function upsertOwnedDoc(db, collectionName, docId, data) {
@@ -593,7 +829,14 @@ const SyncEngine = (function () {
         if (ops.length === 0) return { failed: 0, networkFailure: false };
 
         const recordOps = ops.filter((o) => o.type === 'upsert' || o.type === 'delete');
-        const otherOps = ops.filter((o) => o.type !== 'upsert' && o.type !== 'delete');
+        const todoOps = ops.filter((o) => o.type === 'todo_upsert' || o.type === 'todo_delete');
+        const otherOps = ops.filter(
+            (o) =>
+                o.type !== 'upsert' &&
+                o.type !== 'delete' &&
+                o.type !== 'todo_upsert' &&
+                o.type !== 'todo_delete'
+        );
         const remaining = [];
         let networkFailure = false;
 
@@ -607,6 +850,16 @@ const SyncEngine = (function () {
             });
         }
 
+        if (todoOps.length > 0) {
+            const todos = todoOps.map((op) => op.record);
+            const result = await uploadTodosBatched(db, todos);
+            if (result.networkFailure) networkFailure = true;
+            const failedIds = new Set(result.failed.map((r) => r.id));
+            todoOps.forEach((op) => {
+                if (failedIds.has(op.id)) remaining.push(op);
+            });
+        }
+
         // settings / active_session / clear_all：量少，顺序处理
         for (const op of otherOps) {
             try {
@@ -614,6 +867,12 @@ const SyncEngine = (function () {
                     await upsertSettings(db, userId, op.settings);
                 } else if (op.type === 'active_session') {
                     await upsertActiveSession(db, userId, op.session);
+                } else if (op.type === 'todo_clear_all') {
+                    const result = await uploadTodosBatched(db, op.records || []);
+                    if (result.networkFailure) networkFailure = true;
+                    if (result.failed.length > 0) {
+                        remaining.push({ ...op, records: result.failed });
+                    }
                 } else if (op.type === 'clear_all') {
                     const result = await uploadWorkRecordsBatched(db, op.records || []);
                     if (result.networkFailure) networkFailure = true;
@@ -635,7 +894,7 @@ const SyncEngine = (function () {
     /**
      * 增量拉取（A+D）：
      * 优先走云函数，用 serverNow 推进游标；失败时回退客户端查询（不应用本机 now 推进游标）。
-     * @returns {{ records: Array, serverNow: string|null }}
+     * @returns {{ records: Array, todos: Array, serverNow: string|null }}
      */
     async function pullRemoteChanges(options = {}) {
         const overlapMs =
@@ -655,8 +914,12 @@ const SyncEngine = (function () {
                     const records = (result.records || [])
                         .map(normalizePulledRecord)
                         .filter(Boolean);
+                    const todos = (result.todos || [])
+                        .map(normalizePulledTodo)
+                        .filter(Boolean);
                     return {
                         records,
+                        todos,
                         serverNow: result.serverNow || null
                     };
                 }
@@ -667,7 +930,7 @@ const SyncEngine = (function () {
         }
 
         const db = getDb();
-        if (!db) return { records: [], serverNow: null };
+        if (!db) return { records: [], todos: [], serverNow: null };
 
         const sinceMs = new Date(since).getTime();
         const pullSince = Number.isNaN(sinceMs)
@@ -684,8 +947,23 @@ const SyncEngine = (function () {
                 .orderBy('updatedAt', 'asc')
         );
 
+        let todoDocs = [];
+        try {
+            todoDocs = await fetchAllDocs(db, 'todos', (query) =>
+                query
+                    .where({
+                        _openid: '{openid}',
+                        updatedAt: _.gt(pullSince)
+                    })
+                    .orderBy('updatedAt', 'asc')
+            );
+        } catch (e) {
+            console.warn('客户端拉取待办失败:', e.message || e);
+        }
+
         return {
             records: docs.map(docToRecord),
+            todos: todoDocs.map(docToTodo),
             serverNow: null
         };
     }
@@ -759,7 +1037,7 @@ const SyncEngine = (function () {
 
         let hasFailure = false;
         let networkFailure = false;
-        let pullResult = { records: [], serverNow: null };
+        let pullResult = { records: [], todos: [], serverNow: null };
 
         try {
             const pushResult = await pushPendingOps();
@@ -771,7 +1049,11 @@ const SyncEngine = (function () {
                 hasFailure = true;
                 if (backfillResult.networkFailure) networkFailure = true;
                 backfillResult.failed.forEach((record) => {
-                    queueOp({ type: 'upsert', id: record.id, record });
+                    if (record && record.date && !record.startTime) {
+                        queueOp({ type: 'todo_upsert', id: record.id, record });
+                    } else {
+                        queueOp({ type: 'upsert', id: record.id, record });
+                    }
                 });
             }
 
@@ -780,6 +1062,16 @@ const SyncEngine = (function () {
                 const localRecords = DataStore.getAllRecordsIncludingDeleted();
                 const merged = mergeRecords(localRecords, pullResult.records);
                 DataStore.setRecordsInternal(merged);
+            }
+            if (pullResult.todos && pullResult.todos.length > 0) {
+                const localTodos = DataStore.getAllTodosIncludingDeleted();
+                const pendingTodoIds = new Set(
+                    getPendingOps()
+                        .filter((o) => o.type === 'todo_upsert' || o.type === 'todo_delete' || o.type === 'todo_clear_all')
+                        .flatMap((o) => (o.type === 'todo_clear_all' ? (o.records || []).map((r) => r.id) : [o.id]))
+                );
+                const mergedTodos = TodoModel.mergeTodos(localTodos, pullResult.todos, pendingTodoIds);
+                DataStore.setTodosInternal(mergedTodos);
             }
 
             const remoteSettings = await pullSettings();
@@ -795,7 +1087,7 @@ const SyncEngine = (function () {
                 // 空拉取且无 serverNow 时不推进，避免本机时钟超前造成永久漏拉
                 const cursor =
                     pullResult.serverNow ||
-                    maxUpdatedAtIso(pullResult.records) ||
+                    maxUpdatedAtIso([...(pullResult.records || []), ...(pullResult.todos || [])]) ||
                     null;
                 if (cursor) {
                     setLastSyncedAt(cursor);
@@ -826,16 +1118,30 @@ const SyncEngine = (function () {
         return docs.map(docToRecord).filter(isActiveRecord);
     }
 
+    async function fetchAllActiveTodos(db) {
+        const docs = await fetchAllDocs(db, 'todos', (query) =>
+            query.where({ _openid: '{openid}' }).orderBy('updatedAt', 'desc')
+        );
+        return docs.map(docToTodo).filter(isActiveRecord);
+    }
+
     async function migrateLocalToCloud(strategy, { onProgress } = {}) {
         if (!canSync()) throw new Error('请先登录并确保网络连接');
 
         const db = getDb();
         const userId = Auth.getUserId();
         const localRecords = DataStore.getAllRecordsRaw();
+        const localTodos = DataStore.getTodos();
 
         if (strategy === 'cloud') {
             const records = await fetchAllActiveRecords(db);
             DataStore.setRecordsInternal(records);
+            try {
+                const todos = await fetchAllActiveTodos(db);
+                DataStore.setTodosInternal(todos);
+            } catch (e) {
+                console.warn('拉取云端待办失败:', e.message || e);
+            }
             setLastSyncedAt(new Date().toISOString());
             setPendingOps([]);
             DataStore.notifyDataChanged();
@@ -848,17 +1154,23 @@ const SyncEngine = (function () {
                 assumeNew: true,
                 onProgress
             });
+            const todoResult = await uploadTodosBatched(db, localTodos, { assumeNew: true });
             await DataStore.syncSettingsToCloud();
-            if (result.failed.length > 0) {
+            if (result.failed.length > 0 || todoResult.failed.length > 0) {
                 result.failed.forEach((record) => {
                     queueOp({ type: 'upsert', id: record.id, record });
                 });
-                throw new Error(`已上传 ${result.uploaded} 条，${result.failed.length} 条失败，将自动重试`);
+                todoResult.failed.forEach((todo) => {
+                    queueOp({ type: 'todo_upsert', id: todo.id, record: todo });
+                });
+                throw new Error(
+                    `已上传 ${result.uploaded + todoResult.uploaded} 条，${result.failed.length + todoResult.failed.length} 条失败，将自动重试`
+                );
             }
             setLastSyncedAt(new Date().toISOString());
             setPendingOps([]);
             backfillDone = true;
-            return normalized.length;
+            return normalized.length + localTodos.length;
         }
 
         const normalized = localRecords.map((r) => DataStore.normalizeRecord(r));
@@ -871,10 +1183,16 @@ const SyncEngine = (function () {
                 queueOp({ type: 'upsert', id: record.id, record });
             });
         }
+        const todoResult = await uploadTodosBatched(db, localTodos, { assumeNew: true });
+        if (todoResult.failed.length > 0) {
+            todoResult.failed.forEach((todo) => {
+                queueOp({ type: 'todo_upsert', id: todo.id, record: todo });
+            });
+        }
         setLastSyncedAt('1970-01-01T00:00:00.000Z');
         backfillDone = true;
         await syncNow();
-        return normalized.length;
+        return normalized.length + localTodos.length;
     }
 
     async function pushActiveSession(session) {

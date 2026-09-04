@@ -42,6 +42,7 @@
 | 集合 | 文档 ID |
 |------|---------|
 | `work_records` | 记录 UUID |
+| `todos` | 待办 UUID |
 | `user_settings` | 用户 uid |
 | `active_sessions` | 用户 uid |
 
@@ -54,17 +55,17 @@
 }
 ```
 
-## 6. 索引（`work_records`）
+## 6. 索引（`work_records` / `todos`）
 
 - `_openid` ↑ + `updatedAt` ↑
-- `_openid` ↑ + `startTime` ↓
+- `work_records` 另加：`_openid` ↑ + `startTime` ↓
 
 ## 7. 验证清单
 
 - [ ] 用户名密码登录已开启
 - [ ] 邮箱验证码 + 发信已配置
 - [ ] 安全域名已添加
-- [ ] 三个集合 + 安全规则 + 索引已就绪
+- [ ] 四个集合 + 安全规则 + 索引已就绪
 - [ ] **云函数 `batchUpsertWorkRecords` 已部署**（637 条以上批量上传必需）
 - [ ] 可完成注册（自动登录）→ 同步数据
 
@@ -130,3 +131,5 @@ CLOUDBASE_PULL_FN: 'pullWorkRecordChanges',
 ```
 
 未部署时客户端会回退到直连数据库增量查询，但空拉取时不会用本机时间推进游标。
+
+待办同步复用这两个云函数：`batchUpsertWorkRecords` 增加 `collection: 'todos'`，`pullWorkRecordChanges` 同时返回 `todos`。更新代码后请重新部署这两个函数，并在控制台创建 `todos` 集合。

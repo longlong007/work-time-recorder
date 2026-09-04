@@ -17,6 +17,21 @@
 }
 ```
 
+## 集合：todos
+
+文档 ID = 待办 UUID
+
+```json
+{
+  "date": "2026-09-04",
+  "title": "写同步逻辑",
+  "done": false,
+  "order": 0,
+  "updatedAt": "2026-09-04T09:00:00.000Z",
+  "deletedAt": null
+}
+```
+
 ## 集合：user_settings
 
 文档 ID = 用户 uid
@@ -54,7 +69,7 @@
 
 ## 索引建议
 
-若增量同步报错，在 CloudBase 控制台为 `work_records` 添加复合索引：
+若增量同步报错，在 CloudBase 控制台为 `work_records` 和 `todos` 添加复合索引：
 
 - 字段：`_openid`（升序）+ `updatedAt`（升序）
 
