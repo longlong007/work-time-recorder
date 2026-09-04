@@ -2033,10 +2033,10 @@ function continueAlarm() {
     startAlarmTimer();
 }
 
-// 点击结束按钮 - 结束工作
+// 点击结束按钮 - 结束
 function endFromAlarm() {
     alarmModal.style.display = 'none';
-    // 执行结束工作
+    // 执行结束
     endWork();
 }
 
@@ -2164,7 +2164,7 @@ function initKeyboardShortcuts() {
             return;
         }
         
-        // 空格键：开始/结束工作
+        // 空格键：开始/结束
         if (e.code === 'Space') {
             e.preventDefault();
             if (startBtn.disabled) {

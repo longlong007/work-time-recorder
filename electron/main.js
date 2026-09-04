@@ -290,7 +290,7 @@ function rebuildTrayMenu() {
     if (!tray) return;
 
     const openAtLogin = getOpenAtLogin();
-    const toggleLabel = timerStatus.running ? '结束工作' : '开始工作';
+    const toggleLabel = timerStatus.running ? '结束' : '开始';
     const statusLabel = timerStatus.running ? '进行中' : '未开始';
 
     const menu = Menu.buildFromTemplate([
