@@ -69,10 +69,9 @@
 
 ## 索引建议
 
-若增量同步报错，在 CloudBase 控制台为 `work_records` 和 `todos` 添加复合索引：
+若增量同步报错，在 CloudBase 控制台为 `work_records` 和 `todos` 添加**非唯一**复合索引：
 
 - 字段：`_openid`（升序）+ `updatedAt`（升序）
-
-若按开始时间排序报错，添加：
-
 - 字段：`_openid`（升序）+ `startTime`（降序）
+
+切勿勾选「唯一」。同一用户可以有多条记录共用相同的 `updatedAt` / `startTime`；唯一索引会让补传静默失败，云端条数卡住不涨。

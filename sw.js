@@ -1,4 +1,4 @@
-const CACHE_NAME = 'work-time-recorder-v29';
+const CACHE_NAME = 'work-time-recorder-v30';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -8,6 +8,7 @@ const urlsToCache = [
   '/auth.js',
   '/todo-model.js',
   '/data-store.js',
+  '/sync-logic.js',
   '/sync-engine.js',
   '/cloud-ui.js',
   '/stats-charts.js',
@@ -23,6 +24,7 @@ const NETWORK_FIRST_PATHS = new Set([
   '/auth.js',
   '/todo-model.js',
   '/cloud-ui.js',
+  '/sync-logic.js',
   '/sync-engine.js',
   '/data-store.js',
   '/stats-charts.js',

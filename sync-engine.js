@@ -11,10 +11,15 @@ const SyncEngine = (function () {
     // 限流/超时不在此处自动重试（会火上浇油），失败的 op 留在队列由 sync 层稍后重调。
     const UPLOAD_CONCURRENCY = 4;
     const REQUEST_TIMEOUT_MS = 15000;
-    const SYNC_WATCHDOG_MS = 90000;
+    // 与云函数自身 60s 超时对齐：批量写入一批 100 条时服务端可能跑到数十秒，
+    // 客户端先超时会把已成功写入的批判成失败，导致重复推送。
+    const BATCH_TIMEOUT_MS = 60000;
+    const LIST_IDS_TIMEOUT_MS = 45000;
+    const SYNC_WATCHDOG_MS = 5 * 60 * 1000;
     const CLEARED_SESSION_IGNORE_MS = 60000;
     const CLOUD_BATCH_SIZE = 100;
     const CLOUD_BATCH_THRESHOLD = 5;
+    const MAX_AUTO_SYNC_RETRIES = 8;
 
     const STATUS = {
         IDLE: 'idle',
@@ -34,9 +39,16 @@ const SyncEngine = (function () {
     let syncDebounceTimer = null;
     // 补传（全量差集）仅在每次登录会话首次同步时做一次，之后靠 pending 队列增量
     let backfillDone = false;
+    let lastBackfillReport = null;
+    let consecutiveSyncFailures = 0;
+    let lastAuthedUserId = null;
     let uploadProgressListeners = [];
     // 本机刚结束的计时：忽略云端残留 active_session，避免误报「另一台设备正在计时」
     let recentlyClearedActiveSession = null;
+
+    function getLastBackfillReport() {
+        return lastBackfillReport;
+    }
 
     function setStatus(next) {
         status = next;
@@ -94,16 +106,25 @@ const SyncEngine = (function () {
         localStorage.setItem(PENDING_OPS_KEY, JSON.stringify(ops));
     }
 
-    function queueOp(op) {
-        const ops = getPendingOps();
+    function upsertPendingOp(ops, op) {
         const existing = ops.findIndex((o) => o.id === op.id && o.type === op.type);
         if (existing >= 0) {
             ops[existing] = op;
         } else {
             ops.push(op);
         }
-        setPendingOps(ops);
-        scheduleSync();
+    }
+
+    function queueOps(ops, { schedule = true } = {}) {
+        if (!ops || ops.length === 0) return;
+        const pending = getPendingOps();
+        ops.forEach((op) => upsertPendingOp(pending, op));
+        setPendingOps(pending);
+        if (schedule && !syncInProgress) scheduleSync();
+    }
+
+    function queueOp(op) {
+        queueOps([op]);
     }
 
     function getLastSyncedAt() {
@@ -326,12 +347,13 @@ const SyncEngine = (function () {
     // 给每个 CloudBase 请求套超时：SDK 默认无超时，被打满时请求会永久挂起，
     // 拖住 Promise.all 导致 syncInProgress 永远卡在 true。超时后 reject，
     // 让该 op 失败留在队列，由 scheduleSync 稍后重调（天然限速）。
-    function withTimeout(promise, label) {
+    function withTimeout(promise, label, timeoutMs) {
+        const ms = typeof timeoutMs === 'number' ? timeoutMs : REQUEST_TIMEOUT_MS;
         let timer;
         const timeout = new Promise((_, reject) => {
             timer = setTimeout(
-                () => reject(new Error(`${label || 'request'} 超时（${REQUEST_TIMEOUT_MS}ms）`)),
-                REQUEST_TIMEOUT_MS
+                () => reject(new Error(`${label || 'request'} 超时（${ms}ms）`)),
+                ms
             );
         });
         return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
@@ -383,7 +405,8 @@ const SyncEngine = (function () {
                         assumeNew,
                         collection: 'work_records'
                     }),
-                    'callFunction'
+                    'callFunction',
+                    BATCH_TIMEOUT_MS
                 );
             } catch (e) {
                 console.error('Cloud function batch upload failed:', e);
@@ -393,7 +416,15 @@ const SyncEngine = (function () {
             }
 
             if (!result || result.ok === false) {
-                throw new Error((result && result.error) || '云函数批量上传失败');
+                console.error('云函数批量上传失败:', result && result.error);
+                chunk.forEach((record) => failed.push(record));
+                continue;
+            }
+
+            if (SyncLogic.isSilentBatchFailure(result, chunk.length)) {
+                console.error('云函数返回成功但未写入，视为本批失败', result);
+                chunk.forEach((record) => failed.push(record));
+                continue;
             }
 
             uploaded += result.uploaded || 0;
@@ -481,7 +512,8 @@ const SyncEngine = (function () {
                         assumeNew,
                         collection: 'todos'
                     }),
-                    'callFunction'
+                    'callFunction',
+                    BATCH_TIMEOUT_MS
                 );
             } catch (e) {
                 console.error('Cloud function todo batch upload failed:', e);
@@ -491,7 +523,15 @@ const SyncEngine = (function () {
             }
 
             if (!result || result.ok === false) {
-                throw new Error((result && result.error) || '云函数批量上传待办失败');
+                console.error('云函数批量上传待办失败:', result && result.error);
+                chunk.forEach((todo) => failed.push(todo));
+                continue;
+            }
+
+            if (SyncLogic.isSilentBatchFailure(result, chunk.length)) {
+                console.error('云函数返回成功但待办未写入，视为本批失败', result);
+                chunk.forEach((todo) => failed.push(todo));
+                continue;
             }
 
             uploaded += result.uploaded || 0;
@@ -606,7 +646,46 @@ const SyncEngine = (function () {
         return uploadTodosClient(db, todos, { assumeNew, onProgress });
     }
 
+    function cloudIdsFromPullResult(result) {
+        if (!result || result.ok === false) return null;
+        const ids = new Set();
+        if (Array.isArray(result.ids)) {
+            result.ids.forEach((id) => {
+                if (id) ids.add(id);
+            });
+            return ids;
+        }
+        if (!Array.isArray(result.records)) return null;
+        result.records.forEach((raw) => {
+            const rec = normalizePulledRecord(raw);
+            if (rec && rec.id && !rec.deletedAt) ids.add(rec.id);
+        });
+        return ids;
+    }
+
     async function fetchAllCloudRecordIds(db) {
+        if (typeof Auth.callFunction === 'function') {
+            try {
+                const result = await withTimeout(
+                    Auth.callFunction(getPullFunctionName(), {
+                        since: '1970-01-01T00:00:00.000Z',
+                        overlapMs: 0
+                    }),
+                    'listCloudIds',
+                    LIST_IDS_TIMEOUT_MS
+                );
+                const ids = cloudIdsFromPullResult(result);
+                if (ids) {
+                    if (result.truncated) {
+                        console.warn('云端记录超过拉取上限，差集可能不完整');
+                    }
+                    return ids;
+                }
+            } catch (e) {
+                console.warn('云函数列举云端 ID 失败，回退客户端查询:', e.message || e);
+            }
+        }
+
         const docs = await fetchAllDocs(db, 'work_records', (query) =>
             query.where({ _openid: '{openid}' }).field({ deletedAt: true })
         );
@@ -628,60 +707,135 @@ const SyncEngine = (function () {
         return ids;
     }
 
-    // 仅在每次登录会话的首次同步做一次「云端全量差集」补传，
-    // 用于捕获登出期间创建、未进入 pending 队列的本地记录。
-    // 之后所有本地增删改都会入队增量同步，无需每次全表扫描。
-    async function backfillMissingOnce(db) {
-        if (backfillDone) return null;
+    // 仅在每次登录会话的首次同步做一次「云端全量差集」补传；
+    // 「立即同步」可 force 再比对。待办列举失败时不阻塞工时补传。
+    async function backfillMissingOnce(db, { force = false } = {}) {
+        if (SyncLogic.shouldSkipBackfill(backfillDone, force)) return null;
 
+        const unique = DataStore.ensureUniqueIds();
         const localRecords = DataStore.getAllRecordsRaw();
         const localTodos = DataStore.getTodos();
+
+        lastBackfillReport = {
+            local: localRecords.length,
+            todos: localTodos.length,
+            unique: unique.unique,
+            reassigned: unique.reassigned,
+            cloud: 0,
+            cloudTodos: 0,
+            missing: 0,
+            missingTodos: 0,
+            uploaded: 0,
+            failed: 0
+        };
+
         if (localRecords.length === 0 && localTodos.length === 0) {
             backfillDone = true;
             return null;
         }
 
-        let cloudRecordIds;
-        let cloudTodoIds;
-        try {
-            cloudRecordIds = localRecords.length > 0 ? await fetchAllCloudRecordIds(db) : new Set();
+        let cloudRecordIds = new Set();
+        let recordFetchFailed = false;
+        let networkFailure = false;
+
+        if (localRecords.length > 0) {
             try {
-                cloudTodoIds = localTodos.length > 0 ? await fetchAllCloudTodoIds(db) : new Set();
+                cloudRecordIds = await fetchAllCloudRecordIds(db);
+                lastBackfillReport.cloud = cloudRecordIds.size;
             } catch (e) {
-                console.warn('补传待办差集检查失败，下次同步重试', e);
-                cloudTodoIds = null;
+                console.warn('补传工时差集检查失败，下次同步重试', e);
+                lastBackfillReport.error = (e && e.message) || String(e);
+                recordFetchFailed = true;
+                networkFailure = isLikelyNetworkError(e);
             }
-        } catch (e) {
-            console.warn('补传差集检查失败，下次同步重试', e);
+        }
+
+        let cloudTodoIds = null;
+        if (localTodos.length > 0) {
+            try {
+                cloudTodoIds = await fetchAllCloudTodoIds(db);
+                lastBackfillReport.cloudTodos = cloudTodoIds.size;
+            } catch (e) {
+                console.warn('补传待办差集检查失败，跳过待办补传', e);
+            }
+        }
+
+        if (recordFetchFailed) {
+            backfillDone = true;
+            return { uploaded: 0, failed: [], networkFailure };
+        }
+
+        const pendingIds = getPendingOps().map((o) => o.id);
+        let missingRecords = SyncLogic.computeMissingRecords(localRecords, cloudRecordIds, pendingIds);
+        let missingTodos =
+            cloudTodoIds instanceof Set
+                ? localTodos.filter((t) => t.id && !cloudTodoIds.has(t.id) && !pendingIds.includes(t.id))
+                : [];
+
+        if (force && missingRecords.length === 0 && localRecords.length > cloudRecordIds.size) {
+            missingRecords = localRecords.slice();
+        }
+
+        lastBackfillReport.missing = missingRecords.length;
+        lastBackfillReport.missingTodos = missingTodos.length;
+
+        if (missingRecords.length === 0 && missingTodos.length === 0) {
+            backfillDone = true;
             return null;
         }
 
-        if (cloudTodoIds === null) return null;
-
-        backfillDone = true;
-        const pendingIds = new Set(getPendingOps().map((o) => o.id));
-        const missingRecords = localRecords.filter((r) => !cloudRecordIds.has(r.id) && !pendingIds.has(r.id));
-        const missingTodos = localTodos.filter((t) => !cloudTodoIds.has(t.id) && !pendingIds.has(t.id));
-
-        let networkFailure = false;
         const failed = [];
+        let uploaded = 0;
 
         if (missingRecords.length > 0) {
             console.info(`补传本地记录：${missingRecords.length} 条`);
             const result = await uploadWorkRecordsBatched(db, missingRecords, { assumeNew: true });
             if (result.networkFailure) networkFailure = true;
-            failed.push(...result.failed);
+            uploaded += result.uploaded || 0;
+            failed.push(...(result.failed || []));
+
+            // 仅在「接口报成功但 0 写入」时复核；有 uploaded 则信任结果，避免反复全量扫描
+            const needsVerify =
+                (result.uploaded || 0) === 0 &&
+                (result.failed || []).length === 0 &&
+                missingRecords.length > 0;
+
+            if (needsVerify) {
+                try {
+                    const verifyIds = await fetchAllCloudRecordIds(db);
+                    const stillMissing = SyncLogic.computeMissingRecords(missingRecords, verifyIds, []);
+                    lastBackfillReport.verified = missingRecords.length - stillMissing.length;
+                    lastBackfillReport.stillMissing = stillMissing.length;
+                    const failedIds = new Set(failed.map((r) => r && r.id));
+                    stillMissing.forEach((record) => {
+                        if (record && record.id && !failedIds.has(record.id)) {
+                            failed.push(record);
+                        }
+                    });
+                } catch (e) {
+                    console.warn('补传复核失败，改用上传结果', e);
+                    lastBackfillReport.error = (e && e.message) || String(e);
+                    if (failed.length === 0) failed.push(...missingRecords);
+                }
+            }
         }
 
         if (missingTodos.length > 0) {
             console.info(`补传本地待办：${missingTodos.length} 条`);
             const result = await uploadTodosBatched(db, missingTodos, { assumeNew: true });
             if (result.networkFailure) networkFailure = true;
+            uploaded += result.uploaded || 0;
             failed.push(...result.failed);
         }
 
+        lastBackfillReport.uploaded = uploaded;
+        lastBackfillReport.failed = failed.length;
+
+        // 每会话只做一次全量差集；失败项交给 pending 队列增量重试，避免循环「从头同步」
+        backfillDone = true;
+
         if (failed.length === 0 && !networkFailure) return null;
-        return { failed, networkFailure };
+        return { uploaded, failed, networkFailure };
     }
 
     async function upsertOwnedDoc(db, collectionName, docId, data) {
@@ -786,9 +940,7 @@ const SyncEngine = (function () {
                 if (!isDuplicateError(e)) throw e;
                 const updateRes = await withTimeout(coll.where(query).update(payload), 'update');
                 throwIfDbError(updateRes);
-                if (getUpdatedCount(updateRes) === 0) {
-                    throw new Error(`更新同步失败：${record.id}`);
-                }
+                // 内容未变时 updated 可能为 0，文档已存在即视为成功
             }
         }
 
@@ -1017,6 +1169,8 @@ const SyncEngine = (function () {
         const manual = Boolean(options && options.manual);
         const overlapMs = manual ? MANUAL_PULL_OVERLAP_MS : PULL_OVERLAP_MS;
 
+        if (manual) consecutiveSyncFailures = 0;
+
         if (!APP_CONFIG.isCloudEnabled()) {
             setStatus(STATUS.NOT_CONFIGURED);
             return false;
@@ -1029,6 +1183,7 @@ const SyncEngine = (function () {
             // 看门狗：正常同步有单请求超时兜底，若仍超过阈值多半是上一轮卡死，强制放行
             if (Date.now() - syncStartedAt < SYNC_WATCHDOG_MS) return false;
             console.warn('上一轮同步疑似卡住，强制重置后重试');
+            syncInProgress = false;
         }
 
         syncInProgress = true;
@@ -1044,17 +1199,17 @@ const SyncEngine = (function () {
             if (pushResult.failed > 0) hasFailure = true;
             if (pushResult.networkFailure) networkFailure = true;
 
-            const backfillResult = await backfillMissingOnce(getDb());
+            const backfillResult = await backfillMissingOnce(getDb(), { force: manual });
             if (backfillResult && backfillResult.failed.length > 0) {
                 hasFailure = true;
                 if (backfillResult.networkFailure) networkFailure = true;
-                backfillResult.failed.forEach((record) => {
+                const retryOps = backfillResult.failed.map((record) => {
                     if (record && record.date && !record.startTime) {
-                        queueOp({ type: 'todo_upsert', id: record.id, record });
-                    } else {
-                        queueOp({ type: 'upsert', id: record.id, record });
+                        return { type: 'todo_upsert', id: record.id, record };
                     }
+                    return { type: 'upsert', id: record.id, record };
                 });
+                queueOps(retryOps, { schedule: false });
             }
 
             pullResult = await pullRemoteChanges({ overlapMs });
@@ -1082,7 +1237,9 @@ const SyncEngine = (function () {
             await pullActiveSession();
 
             const pendingLeft = getPendingOps().length;
-            if (pendingLeft === 0 && !hasFailure) {
+            const synced = SyncLogic.canMarkSynced({ pendingLeft, hasFailure, backfillIncomplete: false });
+            if (synced) {
+                consecutiveSyncFailures = 0;
                 // D：优先用服务端时间推进游标；无 serverNow 时仅用变更集 max(updatedAt)
                 // 空拉取且无 serverNow 时不推进，避免本机时钟超前造成永久漏拉
                 const cursor =
@@ -1094,17 +1251,28 @@ const SyncEngine = (function () {
                 }
                 setStatus(STATUS.SYNCED);
             } else {
+                consecutiveSyncFailures += 1;
                 setStatus(networkFailure ? STATUS.OFFLINE : STATUS.ERROR);
-                console.warn(`同步未完成：待重试 ${pendingLeft} 项`);
-                scheduleSync(3000);
+                console.warn(
+                    `同步未完成：待重试 ${pendingLeft} 项（第 ${consecutiveSyncFailures} 次）`
+                );
+                if (consecutiveSyncFailures < MAX_AUTO_SYNC_RETRIES) {
+                    const delay = Math.min(3000 * consecutiveSyncFailures, 30000);
+                    scheduleSync(delay);
+                } else {
+                    console.error('同步多次失败，已停止自动重试，请点「立即同步」或检查网络/云端配置');
+                }
             }
 
             DataStore.notifyDataChanged();
-            return pendingLeft === 0 && !hasFailure;
+            return synced;
         } catch (e) {
             console.error('Sync failed:', e);
+            consecutiveSyncFailures += 1;
             setStatus(isLikelyNetworkError(e) ? STATUS.OFFLINE : STATUS.ERROR);
-            scheduleSync(5000);
+            if (consecutiveSyncFailures < MAX_AUTO_SYNC_RETRIES) {
+                scheduleSync(Math.min(5000 * consecutiveSyncFailures, 30000));
+            }
             return false;
         } finally {
             syncInProgress = false;
@@ -1322,17 +1490,25 @@ const SyncEngine = (function () {
         }
 
         window.addEventListener('online', () => {
-            setStatus(STATUS.SYNCING);
+            if (!Auth.isLoggedIn()) return;
+            if (consecutiveSyncFailures >= MAX_AUTO_SYNC_RETRIES) return;
             syncNow();
         });
         window.addEventListener('offline', () => setStatus(STATUS.OFFLINE));
 
         Auth.onAuthStateChange((user) => {
             if (user) {
-                backfillDone = false;
-                scheduleSync(500);
+                const uid = user.id || user.uid;
+                if (uid !== lastAuthedUserId) {
+                    lastAuthedUserId = uid;
+                    backfillDone = false;
+                    consecutiveSyncFailures = 0;
+                    scheduleSync(500);
+                }
             } else {
+                lastAuthedUserId = null;
                 backfillDone = false;
+                consecutiveSyncFailures = 0;
                 unsubscribeActiveSession();
                 setStatus(STATUS.IDLE);
             }
@@ -1349,11 +1525,13 @@ const SyncEngine = (function () {
         scheduleSync,
         syncNow,
         queueOp,
+        queueOps,
         pushSettings,
         resetSyncCursorForFirstBind,
         getCloudRecordCount,
         migrateLocalToCloud,
         onUploadProgress,
+        getLastBackfillReport,
         pushActiveSession,
         clearActiveSessionRemote,
         markActiveSessionCleared,

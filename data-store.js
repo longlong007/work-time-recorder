@@ -430,12 +430,20 @@ const DataStore = (function () {
     }
 
     function getSettingsSnapshot() {
-        return {
+        const snapshot = {
             tags: getTags(),
             alarmPresets: getAlarmPresets(),
-            theme: getTheme(),
-            updatedAt: new Date().toISOString()
+            theme: getTheme()
         };
+        const contentKey = JSON.stringify(snapshot);
+        const prevKey = localStorage.getItem('settingsContentKey');
+        let updatedAt = localStorage.getItem('settingsUpdatedAt');
+        if (contentKey !== prevKey || !updatedAt) {
+            updatedAt = new Date().toISOString();
+            localStorage.setItem('settingsContentKey', contentKey);
+            localStorage.setItem('settingsUpdatedAt', updatedAt);
+        }
+        return { ...snapshot, updatedAt };
     }
 
     function syncSettingsToCloud() {
@@ -508,6 +516,16 @@ const DataStore = (function () {
         return getAllRecordsRaw().length > 0 || getTodos().length > 0;
     }
 
+    function ensureUniqueIds() {
+        const records = readRawRecords();
+        const result = SyncLogic.reassignDuplicateIds(records, generateId);
+        if (result.reassigned > 0) {
+            writeRawRecords(result.records.map(normalizeRecord));
+            notifyDataChanged();
+        }
+        return result;
+    }
+
     async function migrateLocalToCloud(strategy, options) {
         return SyncEngine.migrateLocalToCloud(strategy, options);
     }
@@ -558,6 +576,7 @@ const DataStore = (function () {
         saveCurrentRecord,
         clearCurrentRecord,
         hasLocalRecords,
+        ensureUniqueIds,
         migrateLocalToCloud,
         syncNow,
         onSyncStatusChange,

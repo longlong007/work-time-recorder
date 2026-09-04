@@ -3,6 +3,7 @@ const CloudUI = (function () {
     const BOUND_ACCOUNT_KEY = 'cloudAccountBound';
     let pendingVerificationInfo = null;
     let syncAfterLoginInFlight = false;
+    let lastSyncedUserId = null;
 
     function $(id) {
         return document.getElementById(id);
@@ -230,7 +231,6 @@ const CloudUI = (function () {
                 SyncEngine.resetSyncCursorForFirstBind();
             }
 
-            updateSyncStatus(SyncEngine.STATUS.SYNCING);
             const ok = await DataStore.syncNow();
             // 成功或「已无待重试」都视为完成本机绑定；失败则下次登录再走首次全量
             if (ok && userId) {
@@ -241,6 +241,7 @@ const CloudUI = (function () {
             console.error('登录后同步失败:', e);
         } finally {
             syncAfterLoginInFlight = false;
+            updateSyncStatus(SyncEngine.getStatus());
         }
     }
 
@@ -337,13 +338,26 @@ const CloudUI = (function () {
             updateAccountBar(user);
             if (user) {
                 SyncEngine.subscribeActiveSession(handleRemoteActiveSession);
-                await ensureSyncedAfterLogin();
+                const uid = user.id || user.uid;
+                if (uid !== lastSyncedUserId) {
+                    lastSyncedUserId = uid;
+                    await ensureSyncedAfterLogin();
+                }
             } else {
+                lastSyncedUserId = null;
                 SyncEngine.unsubscribeActiveSession();
             }
         });
 
         DataStore.onSyncStatusChange(updateSyncStatus);
+
+        if (typeof SyncEngine.onUploadProgress === 'function') {
+            SyncEngine.onUploadProgress((done, total) => {
+                const syncStatus = $('syncStatus');
+                if (!syncStatus || !total) return;
+                syncStatus.textContent = `同步中 ${done}/${total}`;
+            });
+        }
 
         const loginBtn = $('loginBtn');
         const logoutBtn = $('logoutBtn');
@@ -391,9 +405,12 @@ const CloudUI = (function () {
         if (syncNowBtn) {
             syncNowBtn.addEventListener('click', async () => {
                 syncNowBtn.disabled = true;
-                // 手动同步走全量对账，修复增量游标漏拉后的历史缺口
-                await DataStore.syncNow({ manual: true });
-                refreshAppData();
+                try {
+                    await DataStore.syncNow({ manual: true });
+                    refreshAppData();
+                } finally {
+                    updateSyncStatus(SyncEngine.getStatus());
+                }
             });
         }
 
