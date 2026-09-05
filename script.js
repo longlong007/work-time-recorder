@@ -21,6 +21,9 @@ const currentWorkName = document.getElementById('currentWorkName');
 const currentWorkNameValue = document.getElementById('currentWorkNameValue');
 const workNameInput = document.getElementById('workNameInput');
 const workNameSection = document.getElementById('workNameSection');
+const workNameCombobox = document.getElementById('workNameCombobox');
+const workNameComboboxToggle = document.getElementById('workNameComboboxToggle');
+const workNameComboboxList = document.getElementById('workNameComboboxList');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const historyList = document.getElementById('historyList');
@@ -31,7 +34,6 @@ const importFileInput = document.getElementById('importFileInput');
 const filterDate = document.getElementById('filterDate');
 const filterBtn = document.getElementById('filterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
-const todoWorkSelect = document.getElementById('todoWorkSelect');
 const todoList = document.getElementById('todoList');
 const todoTitleInput = document.getElementById('todoTitleInput');
 const todoAddBtn = document.getElementById('todoAddBtn');
@@ -122,7 +124,7 @@ function init() {
     updateDisplay();
     renderHistory();
     renderTodos();
-    refreshTodoWorkSelect();
+    refreshWorkNameCombobox();
     updateStatistics();
     startClock();
     loadTags();
@@ -221,6 +223,7 @@ function loadCurrentRecord() {
         }
         workNameInput.value = record.workName || '';
         workNameInput.disabled = true;
+        refreshWorkNameCombobox();
     }
 }
 
@@ -249,6 +252,7 @@ function applyRemoteActiveSession(session) {
     };
     workNameInput.value = currentRecord.workName;
     workNameInput.disabled = true;
+    refreshWorkNameCombobox();
     updateDisplay();
     startElapsedTimer();
     startAlarmTimer();
@@ -277,6 +281,7 @@ function startWork() {
     
     // 禁用输入框
     workNameInput.disabled = true;
+    refreshWorkNameCombobox();
 }
 
 // 结束工作
@@ -315,6 +320,7 @@ function endWork() {
     // 清空并启用输入框
     workNameInput.value = '';
     workNameInput.disabled = false;
+    refreshWorkNameCombobox();
     workNameInput.focus();
 }
 
@@ -1059,28 +1065,72 @@ function isTodoViewToday() {
     return getTodoViewDate() === getLocalDateString(new Date());
 }
 
-function refreshTodoWorkSelect() {
-    if (!todoWorkSelect) return;
+let workNameComboboxOpen = false;
+
+function setWorkNameComboboxOpen(open) {
+    if (!workNameCombobox || !workNameComboboxList || !workNameInput) return;
+    if (open && workNameComboboxToggle?.disabled) return;
+
+    workNameComboboxOpen = open;
+    workNameCombobox.classList.toggle('is-open', open);
+    workNameComboboxList.hidden = !open;
+    workNameInput.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function toggleWorkNameCombobox() {
+    setWorkNameComboboxOpen(!workNameComboboxOpen);
+}
+
+function selectWorkNameComboboxOption(title) {
+    if (!workNameInput || !title) return;
+    workNameInput.value = title;
+    workNameInput.dispatchEvent(new Event('input'));
+    setWorkNameComboboxOpen(false);
+    workNameInput.focus();
+}
+
+function refreshWorkNameCombobox() {
+    if (!workNameComboboxList || !workNameComboboxToggle) return;
     const today = getLocalDateString(new Date());
     const options = TodoModel.workNameOptions(DataStore.getTodos(), today);
-    const previous = todoWorkSelect.value;
 
-    while (todoWorkSelect.firstChild) {
-        todoWorkSelect.removeChild(todoWorkSelect.firstChild);
+    workNameComboboxList.innerHTML = options.map((item) => `
+        <li class="work-name-combobox-option" role="option" data-value="${escapeAttr(item.title)}">${escapeHtml(item.title)}</li>
+    `).join('');
+
+    const inputDisabled = Boolean(workNameInput && workNameInput.disabled);
+    workNameComboboxToggle.disabled = options.length === 0 || inputDisabled;
+    if (workNameComboboxOpen && options.length === 0) {
+        setWorkNameComboboxOpen(false);
     }
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = '今日待办';
-    todoWorkSelect.appendChild(placeholder);
-    options.forEach((item) => {
-        const option = document.createElement('option');
-        option.value = item.title;
-        option.textContent = item.title;
-        todoWorkSelect.appendChild(option);
+}
+
+function initWorkNameCombobox() {
+    if (!workNameCombobox || !workNameComboboxToggle || !workNameComboboxList || !workNameInput) return;
+
+    workNameComboboxToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleWorkNameCombobox();
     });
-    todoWorkSelect.disabled = options.length === 0;
-    // 划掉/删除当前项后必须显式清空，否则浏览器会把旧 value 继续显示成选项
-    todoWorkSelect.value = options.some((item) => item.title === previous) ? previous : '';
+
+    workNameComboboxList.addEventListener('click', (e) => {
+        const option = e.target.closest('.work-name-combobox-option');
+        if (!option) return;
+        selectWorkNameComboboxOption(option.dataset.value || option.textContent);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!workNameComboboxOpen) return;
+        if (workNameCombobox.contains(e.target)) return;
+        setWorkNameComboboxOpen(false);
+    });
+
+    workNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            setWorkNameComboboxOpen(false);
+        }
+    });
 }
 
 function renderTodos() {
@@ -1258,24 +1308,10 @@ function initTodos() {
             renderTodos();
         });
     }
-    if (todoWorkSelect) {
-        todoWorkSelect.addEventListener('change', () => {
-            if (!todoWorkSelect.value) return;
-            workNameInput.value = todoWorkSelect.value;
-            workNameInput.dispatchEvent(new Event('input'));
-            workNameInput.focus();
-        });
-    }
-    if (workNameInput) {
-        workNameInput.addEventListener('input', () => {
-            if (todoWorkSelect && todoWorkSelect.value && todoWorkSelect.value !== workNameInput.value) {
-                todoWorkSelect.value = '';
-            }
-        });
-    }
+    initWorkNameCombobox();
 
     renderTodos();
-    refreshTodoWorkSelect();
+    refreshWorkNameCombobox();
 }
 
 // ==================== 标签管理功能 ====================
@@ -1678,7 +1714,7 @@ async function bootstrap() {
     DataStore.onDataChanged(() => {
         renderHistory();
         renderTodos();
-        refreshTodoWorkSelect();
+        refreshWorkNameCombobox();
         updateStatistics();
         renderQuickTags();
         renderAlarmPresets();

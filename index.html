@@ -77,15 +77,29 @@
                         <div class="input-row">
                             <span class="input-label">工作名称</span>
                             <div class="work-name-fields">
-                                <select id="todoWorkSelect" class="todo-work-select" aria-label="选择今日待办">
-                                    <option value="">今日待办</option>
-                                </select>
-                                <input
-                                    type="text"
-                                    id="workNameInput"
-                                    class="work-name-input"
-                                    placeholder="请输入工作内容名称（可选）"
-                                    maxlength="50">
+                                <div class="work-name-combobox" id="workNameCombobox">
+                                    <input
+                                        type="text"
+                                        id="workNameInput"
+                                        class="work-name-input"
+                                        placeholder="请输入工作内容名称（可选）"
+                                        maxlength="50"
+                                        autocomplete="off"
+                                        role="combobox"
+                                        aria-expanded="false"
+                                        aria-controls="workNameComboboxList"
+                                        aria-autocomplete="list">
+                                    <button
+                                        type="button"
+                                        class="work-name-combobox-toggle"
+                                        id="workNameComboboxToggle"
+                                        aria-label="选择今日待办"
+                                        tabindex="-1"
+                                        disabled>
+                                        <span aria-hidden="true">▾</span>
+                                    </button>
+                                    <ul class="work-name-combobox-list" id="workNameComboboxList" role="listbox" hidden></ul>
+                                </div>
                             </div>
                         </div>
                     </div>
