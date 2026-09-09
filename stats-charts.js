@@ -178,6 +178,23 @@ const StatsCharts = (function () {
         return true;
     }
 
+    function isRestBucketRecord(record) {
+        return typeof isRestRecord === 'function' && isRestRecord(record);
+    }
+
+    function isStackedAllMode() {
+        return typeof getStatsFilterMode === 'function' && getStatsFilterMode() === 'all';
+    }
+
+    function addDuration(bucket, record, duration) {
+        bucket.ms += duration;
+        if (isRestBucketRecord(record)) {
+            bucket.restMs += duration;
+        } else {
+            bucket.workMs += duration;
+        }
+    }
+
     function aggregate(records) {
         const buckets = [];
         const now = new Date();
@@ -194,6 +211,8 @@ const StatsCharts = (function () {
                     label: WEEKDAY_LABELS[i],
                     subLabel: formatShortDate(day),
                     ms: 0,
+                    workMs: 0,
+                    restMs: 0,
                     highlight: isSameDay(day, today),
                 });
             }
@@ -208,6 +227,8 @@ const StatsCharts = (function () {
                     label: String(d),
                     subLabel: '',
                     ms: 0,
+                    workMs: 0,
+                    restMs: 0,
                     highlight: isSameDay(day, today),
                 });
             }
@@ -219,6 +240,8 @@ const StatsCharts = (function () {
                     label: `${m + 1}月`,
                     subLabel: '',
                     ms: 0,
+                    workMs: 0,
+                    restMs: 0,
                     highlight: now.getFullYear() === year && now.getMonth() === m,
                 });
             }
@@ -236,13 +259,13 @@ const StatsCharts = (function () {
 
             if (period === 'week') {
                 buckets.forEach((bucket) => {
-                    if (isSameDay(recordDate, bucket.date)) bucket.ms += duration;
+                    if (isSameDay(recordDate, bucket.date)) addDuration(bucket, record, duration);
                 });
             } else if (period === 'month') {
                 const dayIndex = recordDate.getDate() - 1;
-                if (buckets[dayIndex]) buckets[dayIndex].ms += duration;
+                if (buckets[dayIndex]) addDuration(buckets[dayIndex], record, duration);
             } else {
-                buckets[recordDate.getMonth()].ms += duration;
+                addDuration(buckets[recordDate.getMonth()], record, duration);
             }
         });
 
@@ -270,11 +293,36 @@ const StatsCharts = (function () {
             bar: isDark ? '#5a9bc4' : '#5a9bc4',
             barHighlight: isDark ? '#7eb8dc' : '#3d8ab8',
             barHover: isDark ? '#8ec4e8' : '#4a7ea6',
+            rest: isDark ? '#6aab88' : '#6aab88',
+            restHighlight: isDark ? '#8ec4a8' : '#4d9470',
+            restHover: isDark ? '#9ed4b8' : '#5a9a78',
             grid: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(90,155,196,0.15)',
             text: isDark ? '#b0b0b0' : '#666',
             textMuted: isDark ? '#808080' : '#999',
             bg: 'transparent',
         };
+    }
+
+    function pickBarColor(colors, kind, isHovered, highlight) {
+        if (kind === 'rest') {
+            if (isHovered) return colors.restHover;
+            if (highlight) return colors.restHighlight;
+            return colors.rest;
+        }
+        if (isHovered) return colors.barHover;
+        if (highlight) return colors.barHighlight;
+        return colors.bar;
+    }
+
+    function fillBar(x, y, w, h, radius, color) {
+        if (h <= 0) return;
+        ctx.fillStyle = color;
+        if (radius > 0) {
+            roundRect(ctx, x, y, w, h, radius);
+            ctx.fill();
+        } else {
+            ctx.fillRect(x, y, w, h);
+        }
     }
 
     function render() {
@@ -328,22 +376,44 @@ const StatsCharts = (function () {
         }
 
         // 柱状图
+        const stacked = isStackedAllMode();
         buckets.forEach((bucket, i) => {
-            const barH = (bucket.ms / maxMs) * chartH;
             const x = padding.left + i * (barWidth + barGap);
-            const y = padding.top + chartH - barH;
-
             const isHovered = i === hoveredIndex;
-            ctx.fillStyle = isHovered
-                ? colors.barHover
-                : bucket.highlight
-                  ? colors.barHighlight
-                  : colors.bar;
+            const radius = Math.min(3, barWidth / 2);
 
-            if (barH > 0) {
-                const radius = Math.min(3, barWidth / 2);
-                roundRect(ctx, x, y, barWidth, barH, radius);
-                ctx.fill();
+            if (stacked) {
+                const workH = (bucket.workMs / maxMs) * chartH;
+                const restH = (bucket.restMs / maxMs) * chartH;
+                const workY = padding.top + chartH - workH;
+                const restY = workY - restH;
+                fillBar(
+                    x,
+                    workY,
+                    barWidth,
+                    workH,
+                    restH > 0 ? 0 : radius,
+                    pickBarColor(colors, 'work', isHovered, bucket.highlight)
+                );
+                fillBar(
+                    x,
+                    restY,
+                    barWidth,
+                    restH,
+                    radius,
+                    pickBarColor(colors, 'rest', isHovered, bucket.highlight)
+                );
+            } else {
+                const barH = (bucket.ms / maxMs) * chartH;
+                const y = padding.top + chartH - barH;
+                fillBar(
+                    x,
+                    y,
+                    barWidth,
+                    barH,
+                    radius,
+                    pickBarColor(colors, 'work', isHovered, bucket.highlight)
+                );
             }
 
             // X 轴标签
@@ -411,7 +481,11 @@ const StatsCharts = (function () {
             } else if (period === 'year') {
                 title = `${anchorDate.getFullYear()}年${bucket.label}`;
             }
-            tooltipEl.textContent = `${title}: ${formatDuration(bucket.ms)}`;
+            if (isStackedAllMode()) {
+                tooltipEl.textContent = `${title}: 工作 ${formatDuration(bucket.workMs)} · 休息 ${formatDuration(bucket.restMs)}`;
+            } else {
+                tooltipEl.textContent = `${title}: ${formatDuration(bucket.ms)}`;
+            }
             tooltipEl.style.display = 'block';
             tooltipEl.style.left = `${e.clientX - rect.left}px`;
             tooltipEl.style.top = `${e.clientY - rect.top - 32}px`;
