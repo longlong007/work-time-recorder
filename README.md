@@ -72,4 +72,5 @@
 ## 文档
 
 - [使用手册](docs/USER_GUIDE.md) — 完整功能使用说明
+- [Mac 桌面应用：打包与启动](docs/MAC_APP.md) — 本地 Electron 启动、pack / dmg
 - [演进路线图](docs/ROADMAP.md) — v2-v4 功能规划方向
