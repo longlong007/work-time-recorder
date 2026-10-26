@@ -1146,7 +1146,8 @@ function renderTodos() {
     }
 
     todoList.innerHTML = items.map((todo) => `
-        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}">
+        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}" draggable="true">
+            <span class="todo-drag-handle" title="拖动排序" aria-hidden="true">☰</span>
             <input type="checkbox" class="todo-item-check" ${todo.done ? 'checked' : ''} aria-label="完成">
             <input type="text" class="todo-item-title" value="${escapeAttr(todo.title)}" maxlength="80" aria-label="待办标题">
             <button type="button" class="todo-item-delete" title="删除此待办">🗑️</button>
@@ -1195,6 +1196,76 @@ function renderTodos() {
             }
         });
     });
+
+    initTodoDragAndDrop(dateStr);
+}
+
+function initTodoDragAndDrop(dateStr) {
+    if (!todoList) return;
+    const rows = todoList.querySelectorAll('.todo-item');
+    let draggedElement = null;
+
+    rows.forEach((item) => {
+        item.addEventListener('dragstart', (e) => {
+            if (!e.target.closest('.todo-drag-handle')) {
+                e.preventDefault();
+                return;
+            }
+            draggedElement = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', item.dataset.id || '');
+        });
+
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            rows.forEach((row) => row.classList.remove('drag-over'));
+            updateTodoOrder(dateStr);
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const afterElement = getDragAfterElement(todoList, e.clientY, '.todo-item');
+            const dragging = todoList.querySelector('.todo-item.dragging');
+            if (!dragging) return;
+
+            if (afterElement == null) {
+                todoList.appendChild(dragging);
+            } else {
+                todoList.insertBefore(dragging, afterElement);
+            }
+        });
+
+        item.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            if (item !== draggedElement) {
+                item.classList.add('drag-over');
+            }
+        });
+
+        item.addEventListener('dragleave', () => {
+            item.classList.remove('drag-over');
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+        });
+    });
+}
+
+function updateTodoOrder(dateStr) {
+    if (!todoList) return;
+    const newOrder = Array.from(todoList.querySelectorAll('.todo-item')).map((row) => row.dataset.id);
+    const currentOrder = DataStore.getTodosByDate(dateStr).map((t) => t.id);
+    const hasChanged =
+        newOrder.length === currentOrder.length &&
+        newOrder.some((id, index) => id !== currentOrder[index]);
+    if (hasChanged) {
+        DataStore.reorderTodosForDate(dateStr, newOrder);
+    }
 }
 
 function addTodoFromInput() {
@@ -1430,7 +1501,7 @@ function initTagDragAndDrop() {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             
-            const afterElement = getDragAfterElement(tagList, e.clientY);
+            const afterElement = getDragAfterElement(tagList, e.clientY, '.tag-item');
             const dragging = tagList.querySelector('.dragging');
             
             if (afterElement == null) {
@@ -1481,8 +1552,8 @@ function updateTagOrder() {
 }
 
 // 获取拖拽后应该插入的位置
-function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.tag-item:not(.dragging)')];
+function getDragAfterElement(container, y, itemSelector = '.tag-item') {
+    const draggableElements = [...container.querySelectorAll(`${itemSelector}:not(.dragging)`)];
     
     return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();

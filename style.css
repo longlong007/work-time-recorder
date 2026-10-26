@@ -1747,6 +1747,28 @@ body {
     margin-bottom: 8px;
 }
 
+.todo-item.dragging {
+    opacity: 0.5;
+}
+
+.todo-item.drag-over {
+    box-shadow: inset 0 3px 0 var(--border-focus);
+}
+
+.todo-drag-handle {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 1.1em;
+    cursor: grab;
+    user-select: none;
+    line-height: 1;
+    padding: 2px 0;
+}
+
+.todo-drag-handle:active {
+    cursor: grabbing;
+}
+
 .todo-item.is-done .todo-item-title {
     text-decoration: line-through;
     color: var(--text-muted);

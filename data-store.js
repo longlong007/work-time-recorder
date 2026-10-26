@@ -303,6 +303,35 @@ const DataStore = (function () {
         return getTodos().find((t) => t.id === id) || null;
     }
 
+    function reorderTodosForDate(dateStr, orderedIds) {
+        const ids = Array.isArray(orderedIds) ? orderedIds.filter(Boolean) : [];
+        if (ids.length === 0) return false;
+
+        const todos = readRawTodos();
+        const onDate = todos.filter((t) => !t.deletedAt && t.date === dateStr);
+        if (onDate.length !== ids.length) return false;
+
+        const dateIdSet = new Set(onDate.map((t) => t.id));
+        if (ids.some((id) => !dateIdSet.has(id))) return false;
+
+        const now = new Date().toISOString();
+        let changed = false;
+
+        ids.forEach((id, order) => {
+            const idx = todos.findIndex((t) => t.id === id);
+            if (idx === -1) return;
+            if (todos[idx].order === order) return;
+            todos[idx] = { ...todos[idx], order, updatedAt: now };
+            queueTodoUpsert(todos[idx]);
+            changed = true;
+        });
+
+        if (!changed) return false;
+        writeRawTodos(todos.filter((t) => !t.deletedAt));
+        notifyDataChanged();
+        return true;
+    }
+
     function deleteTodo(id) {
         const todos = readRawTodos();
         const todo = todos.find((t) => t.id === id);
@@ -559,6 +588,7 @@ const DataStore = (function () {
         setTodosInternal,
         saveTodo,
         updateTodo,
+        reorderTodosForDate,
         findTodo,
         deleteTodo,
         importTodos,
