@@ -1761,8 +1761,9 @@ body {
     font-size: 1.1em;
     cursor: grab;
     user-select: none;
+    touch-action: none;
     line-height: 1;
-    padding: 2px 0;
+    padding: 4px 6px;
 }
 
 .todo-drag-handle:active {

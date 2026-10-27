@@ -1146,8 +1146,8 @@ function renderTodos() {
     }
 
     todoList.innerHTML = items.map((todo) => `
-        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}" draggable="true">
-            <span class="todo-drag-handle" title="拖动排序" aria-hidden="true">☰</span>
+        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}">
+            <span class="todo-drag-handle" role="button" aria-label="拖动排序" title="拖动排序">☰</span>
             <input type="checkbox" class="todo-item-check" ${todo.done ? 'checked' : ''} aria-label="完成">
             <input type="text" class="todo-item-title" value="${escapeAttr(todo.title)}" maxlength="80" aria-label="待办标题">
             <button type="button" class="todo-item-delete" title="删除此待办">🗑️</button>
@@ -1197,62 +1197,48 @@ function renderTodos() {
         });
     });
 
-    initTodoDragAndDrop(dateStr);
 }
 
-function initTodoDragAndDrop(dateStr) {
-    if (!todoList) return;
-    const rows = todoList.querySelectorAll('.todo-item');
-    let draggedElement = null;
+function bindTodoPointerReorder() {
+    if (!todoList || todoList.dataset.reorderBound === '1') return;
+    todoList.dataset.reorderBound = '1';
 
-    rows.forEach((item) => {
-        item.addEventListener('dragstart', (e) => {
-            if (!e.target.closest('.todo-drag-handle')) {
-                e.preventDefault();
-                return;
-            }
-            draggedElement = item;
-            item.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', item.dataset.id || '');
-        });
+    todoList.addEventListener('pointerdown', (e) => {
+        const handle = e.target.closest('.todo-drag-handle');
+        if (!handle || e.button !== 0) return;
+        const item = handle.closest('.todo-item');
+        if (!item) return;
 
-        item.addEventListener('dragend', () => {
-            item.classList.remove('dragging');
-            rows.forEach((row) => row.classList.remove('drag-over'));
-            updateTodoOrder(dateStr);
-        });
+        e.preventDefault();
+        item.classList.add('dragging');
+        try {
+            handle.setPointerCapture(e.pointerId);
+        } catch (err) {
+            // 捕获失败时仍监听 document
+        }
 
-        item.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-
-            const afterElement = getDragAfterElement(todoList, e.clientY, '.todo-item');
-            const dragging = todoList.querySelector('.todo-item.dragging');
-            if (!dragging) return;
-
+        const pointerId = e.pointerId;
+        const move = (ev) => {
+            if (ev.pointerId !== pointerId) return;
+            const afterElement = getDragAfterElement(todoList, ev.clientY, '.todo-item');
             if (afterElement == null) {
-                todoList.appendChild(dragging);
-            } else {
-                todoList.insertBefore(dragging, afterElement);
+                todoList.appendChild(item);
+            } else if (afterElement !== item) {
+                todoList.insertBefore(item, afterElement);
             }
-        });
+        };
+        const finish = (ev) => {
+            if (ev.pointerId !== pointerId) return;
+            document.removeEventListener('pointermove', move, true);
+            document.removeEventListener('pointerup', finish, true);
+            document.removeEventListener('pointercancel', finish, true);
+            item.classList.remove('dragging');
+            updateTodoOrder(getTodoViewDate());
+        };
 
-        item.addEventListener('dragenter', (e) => {
-            e.preventDefault();
-            if (item !== draggedElement) {
-                item.classList.add('drag-over');
-            }
-        });
-
-        item.addEventListener('dragleave', () => {
-            item.classList.remove('drag-over');
-        });
-
-        item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            item.classList.remove('drag-over');
-        });
+        document.addEventListener('pointermove', move, true);
+        document.addEventListener('pointerup', finish, true);
+        document.addEventListener('pointercancel', finish, true);
     });
 }
 
@@ -1380,6 +1366,7 @@ function initTodos() {
         });
     }
     initWorkNameCombobox();
+    bindTodoPointerReorder();
 
     renderTodos();
     refreshWorkNameCombobox();
