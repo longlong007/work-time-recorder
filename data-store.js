@@ -237,7 +237,14 @@ const DataStore = (function () {
     }
 
     function writeRawTodos(todos) {
-        localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(todos));
+        const seen = new Set();
+        const unique = [];
+        (todos || []).forEach((t) => {
+            if (!t || !t.id || seen.has(t.id)) return;
+            seen.add(t.id);
+            unique.push(t);
+        });
+        localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(unique));
     }
 
     function getTodos() {

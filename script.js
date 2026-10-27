@@ -1056,6 +1056,9 @@ function escapeAttr(text) {
 // ==================== 待办 ====================
 
 let todoDateValue = null;
+/** 待办拖拽进行中：避免 renderTodos 重建列表时旧节点被再次插回造成重复行 */
+let activeTodoDrag = null;
+let todoRenderPending = false;
 
 function getTodoViewDate() {
     return todoDateValue || getLocalDateString(new Date());
@@ -1135,6 +1138,11 @@ function initWorkNameCombobox() {
 
 function renderTodos() {
     if (!todoList) return;
+    if (activeTodoDrag) {
+        todoRenderPending = true;
+        return;
+    }
+    todoRenderPending = false;
     const dateStr = getTodoViewDate();
     if (todoPanelTitle) {
         todoPanelTitle.textContent = isTodoViewToday() ? '今日待办' : `${dateStr} 待办`;
@@ -1199,6 +1207,25 @@ function renderTodos() {
 
 }
 
+function finishTodoDragSession(session, { saveOrder }) {
+    if (!session || session.ended) return;
+    session.ended = true;
+    document.removeEventListener('pointermove', session.move, true);
+    document.removeEventListener('pointerup', session.finish, true);
+    document.removeEventListener('pointercancel', session.finish, true);
+    session.item.classList.remove('dragging');
+    if (activeTodoDrag === session) {
+        activeTodoDrag = null;
+    }
+    const dateStr = getTodoViewDate();
+    if (saveOrder && session.item.isConnected && session.item.parentNode === todoList) {
+        updateTodoOrder(dateStr);
+    } else if (todoRenderPending) {
+        todoRenderPending = false;
+        renderTodos();
+    }
+}
+
 function bindTodoPointerReorder() {
     if (!todoList || todoList.dataset.reorderBound === '1') return;
     todoList.dataset.reorderBound = '1';
@@ -1209,6 +1236,10 @@ function bindTodoPointerReorder() {
         const item = handle.closest('.todo-item');
         if (!item) return;
 
+        if (activeTodoDrag) {
+            finishTodoDragSession(activeTodoDrag, { saveOrder: false });
+        }
+
         e.preventDefault();
         item.classList.add('dragging');
         try {
@@ -1218,39 +1249,61 @@ function bindTodoPointerReorder() {
         }
 
         const pointerId = e.pointerId;
-        const move = (ev) => {
-            if (ev.pointerId !== pointerId) return;
-            const afterElement = getDragAfterElement(todoList, ev.clientY, '.todo-item');
-            if (afterElement == null) {
-                todoList.appendChild(item);
-            } else if (afterElement !== item) {
-                todoList.insertBefore(item, afterElement);
+        const session = {
+            item,
+            pointerId,
+            ended: false,
+            move(ev) {
+                if (session.ended || ev.pointerId !== pointerId) return;
+                if (!item.isConnected || item.parentNode !== todoList) {
+                    finishTodoDragSession(session, { saveOrder: false });
+                    return;
+                }
+                const afterElement = getDragAfterElement(todoList, ev.clientY, '.todo-item');
+                if (afterElement == null) {
+                    todoList.appendChild(item);
+                } else if (afterElement !== item) {
+                    todoList.insertBefore(item, afterElement);
+                }
+            },
+            finish(ev) {
+                if (session.ended || ev.pointerId !== pointerId) return;
+                finishTodoDragSession(session, { saveOrder: true });
             }
         };
-        const finish = (ev) => {
-            if (ev.pointerId !== pointerId) return;
-            document.removeEventListener('pointermove', move, true);
-            document.removeEventListener('pointerup', finish, true);
-            document.removeEventListener('pointercancel', finish, true);
-            item.classList.remove('dragging');
-            updateTodoOrder(getTodoViewDate());
-        };
+        session.move = session.move.bind(session);
+        session.finish = session.finish.bind(session);
+        activeTodoDrag = session;
 
-        document.addEventListener('pointermove', move, true);
-        document.addEventListener('pointerup', finish, true);
-        document.addEventListener('pointercancel', finish, true);
+        document.addEventListener('pointermove', session.move, true);
+        document.addEventListener('pointerup', session.finish, true);
+        document.addEventListener('pointercancel', session.finish, true);
     });
 }
 
 function updateTodoOrder(dateStr) {
     if (!todoList) return;
-    const newOrder = Array.from(todoList.querySelectorAll('.todo-item')).map((row) => row.dataset.id);
+    const rowIds = Array.from(todoList.querySelectorAll('.todo-item')).map((row) => row.dataset.id);
+    const newOrder = [];
+    const seen = new Set();
+    rowIds.forEach((id) => {
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        newOrder.push(id);
+    });
+    if (newOrder.length !== rowIds.length) {
+        renderTodos();
+        return;
+    }
     const currentOrder = DataStore.getTodosByDate(dateStr).map((t) => t.id);
     const hasChanged =
         newOrder.length === currentOrder.length &&
         newOrder.some((id, index) => id !== currentOrder[index]);
     if (hasChanged) {
         DataStore.reorderTodosForDate(dateStr, newOrder);
+    } else if (todoRenderPending) {
+        todoRenderPending = false;
+        renderTodos();
     }
 }
 
