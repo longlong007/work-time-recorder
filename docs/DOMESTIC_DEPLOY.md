@@ -587,6 +587,8 @@ Let's Encrypt 证书 90 天有效，certbot 会自动续期。可每月检查：
 sudo certbot certificates
 ```
 
+证书已过期、浏览器报不安全、或 GitHub **Deploy Mainland** 验证失败时，见专项文档：[SSL_CERT_RENEWAL.md](SSL_CERT_RENEWAL.md)。
+
 ### 11.4 日志位置
 
 | 日志 | 路径 |
