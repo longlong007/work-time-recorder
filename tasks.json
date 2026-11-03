@@ -1,0 +1,43 @@
+{
+  "project": "工作时间记录器",
+  "last_updated": "2026-11-03",
+  "current_focus": "让 README 和自动化检查与当前 Electron + CloudBase 形态一致",
+  "tasks": [
+    {
+      "id": "docs-01",
+      "title": "重写 README，对齐桌面版和云同步",
+      "description": "README 仍写双击 index.html 和 GitHub Pages。改成以 npm start / npm test 为主路径，说明 config.js 可选，并链到 docs/MAC_APP.md 与 docs/USER_GUIDE.md。",
+      "status": "pending",
+      "priority": "high",
+      "verify": "在仓库根目录执行 rg -n \"npm start|npm test\" README.md，两条都能命中；再执行 rg -n \"github.io\" README.md，无命中。",
+      "requires_eval": false
+    },
+    {
+      "id": "ci-01",
+      "title": "推送时跑 npm test",
+      "description": "现有 workflow 只部署大陆服务器。增加一个独立 workflow，在 push 和 pull_request 时执行 npm test，不碰部署密钥。",
+      "status": "pending",
+      "priority": "medium",
+      "verify": "本地 npm test 退出码为 0；.github/workflows/ 下有文件包含 npm test；该文件不读取 SSH_PRIVATE_KEY。",
+      "requires_eval": false
+    },
+    {
+      "id": "ui-01",
+      "title": "把待办列表从 script.js 拆出去",
+      "description": "待办的渲染、拖拽和导入导出仍写在 script.js。抽到独立浏览器脚本，写入继续走 DataStore，规范化继续走 TodoModel。计时和闹钟先不动。",
+      "status": "pending",
+      "priority": "medium",
+      "verify": "npm test 退出码为 0；rg -n \"function renderTodos\" script.js 无命中；index.html 在 script.js 之前加载新脚本。再用 npm start 对当天待办执行新增、勾选、拖拽排序各一次，刷新后顺序还在。",
+      "requires_eval": true
+    },
+    {
+      "id": "sync-01",
+      "title": "给 DataStore 的软删除和入队补可单测的纯函数",
+      "description": "记录删除和同步入队都绑在 localStorage 上，现有测试盖不住。先把「标记 deletedAt」和「是否应该入队」抽成无 DOM 函数并加测试，先不改同步协议。",
+      "status": "pending",
+      "priority": "medium",
+      "verify": "npm test 退出码为 0；tests/ 中新增用例至少包含一条软删除断言和一条未登录不入队断言。",
+      "requires_eval": true
+    }
+  ]
+}
