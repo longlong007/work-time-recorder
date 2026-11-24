@@ -156,6 +156,54 @@
         return lines.join('\n');
     }
 
+    /**
+     * 同步刷新待办时，决定要不要拆掉现有 DOM。
+     * rows 是当前列表快照（输入框里的文字），items 是存储里的结果。
+     * preserveTitleId 是正在输入、且草稿和聚焦时不同的那一行：它的标题差不算变更。
+     * 身份（id 顺序）变了必须重建；只改完成状态或其它行标题则原地补丁。
+     */
+    function planTodoListUpdate(rows, items, preserveTitleId) {
+        if (!Array.isArray(rows) || !Array.isArray(items)) {
+            return { action: 'rebuild', updates: [] };
+        }
+
+        const prev = rows.map(snapshotTodoRow);
+        const next = items.map(snapshotTodoRow);
+        const sameIdentity =
+            prev.length === next.length && prev.every((row, index) => row.id === next[index].id);
+        if (!sameIdentity) {
+            return { action: 'rebuild', updates: [] };
+        }
+
+        const updates = [];
+        const preservedId = preserveTitleId == null ? '' : String(preserveTitleId);
+        for (let i = 0; i < next.length; i++) {
+            const row = prev[i];
+            const item = next[i];
+            const keepDraft = preservedId !== '' && row.id === preservedId;
+            const titleChanged = !keepDraft && row.title !== item.title;
+            const doneChanged = row.done !== item.done;
+            if (!titleChanged && !doneChanged) continue;
+            const update = { id: item.id, done: item.done };
+            if (titleChanged) update.title = item.title;
+            updates.push(update);
+        }
+
+        if (updates.length === 0) {
+            return { action: 'noop', updates: [] };
+        }
+        return { action: 'patch', updates };
+    }
+
+    function snapshotTodoRow(row) {
+        const source = row || {};
+        return {
+            id: source.id == null ? '' : String(source.id),
+            done: Boolean(source.done),
+            title: source.title == null ? '' : String(source.title)
+        };
+    }
+
     function parseTodoCsv(text) {
         const clean = String(text || '').replace(/^\ufeff/, '');
         const lines = clean.split(/\r?\n/);
@@ -196,6 +244,7 @@
         workNameOptions,
         nextOrder,
         mergeTodos,
+        planTodoListUpdate,
         toTodoCsv,
         parseTodoCsv
     };

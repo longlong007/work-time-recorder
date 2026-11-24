@@ -1136,6 +1136,184 @@ function initWorkNameCombobox() {
     });
 }
 
+/** 重建列表会拆掉输入框并触发 blur；这段时间不能把写到一半的标题提交进存储 */
+let suppressTodoTitleCommit = false;
+
+function cssEscapeIdent(value) {
+    const text = String(value);
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(text);
+    }
+    return text.replace(/["\\]/g, '\\$&');
+}
+
+function readTodoListRows() {
+    if (!todoList) return [];
+    return Array.from(todoList.querySelectorAll('.todo-item')).map((row) => {
+        const titleInput = row.querySelector('.todo-item-title');
+        const check = row.querySelector('.todo-item-check');
+        return {
+            id: row.dataset.id,
+            done: Boolean(check && check.checked),
+            title: titleInput ? titleInput.value : ''
+        };
+    });
+}
+
+function activeTodoTitleInput() {
+    const active = document.activeElement;
+    if (!active || !todoList || !todoList.contains(active)) return null;
+    if (!active.classList || !active.classList.contains('todo-item-title')) return null;
+    return active;
+}
+
+/** 只有焦点还在、且文字已经偏离聚焦时的内容，才算必须保住的草稿 */
+function focusedTodoDraftId() {
+    const active = activeTodoTitleInput();
+    if (!active) return null;
+    const baseline = active.getAttribute('data-title-at-focus');
+    if (baseline === null || active.value === baseline) return null;
+    const row = active.closest('.todo-item');
+    return row ? row.dataset.id : null;
+}
+
+function captureTodoTitleEdit() {
+    const active = activeTodoTitleInput();
+    if (!active) return null;
+    const row = active.closest('.todo-item');
+    if (!row) return null;
+    return {
+        id: row.dataset.id,
+        value: active.value,
+        baseline: active.getAttribute('data-title-at-focus'),
+        start: active.selectionStart,
+        end: active.selectionEnd
+    };
+}
+
+function restoreTodoTitleEdit(editing) {
+    if (!editing || !todoList) return;
+    const row = todoList.querySelector(`.todo-item[data-id="${cssEscapeIdent(editing.id)}"]`);
+    const titleInput = row && row.querySelector('.todo-item-title');
+    if (!titleInput) return;
+    const baseline = editing.baseline !== null ? editing.baseline : titleInput.value;
+    titleInput.setAttribute('data-title-at-focus', baseline);
+    titleInput.value = editing.value;
+    titleInput.focus();
+    if (typeof editing.start === 'number' && typeof editing.end === 'number') {
+        const max = titleInput.value.length;
+        titleInput.setSelectionRange(Math.min(editing.start, max), Math.min(editing.end, max));
+    }
+}
+
+function applyTodoListPatch(updates) {
+    updates.forEach((update) => {
+        const row = todoList.querySelector(`.todo-item[data-id="${cssEscapeIdent(update.id)}"]`);
+        if (!row) return;
+        row.classList.toggle('is-done', Boolean(update.done));
+        const check = row.querySelector('.todo-item-check');
+        if (check && check.checked !== Boolean(update.done)) {
+            check.checked = Boolean(update.done);
+        }
+        if (!Object.prototype.hasOwnProperty.call(update, 'title')) return;
+        const titleInput = row.querySelector('.todo-item-title');
+        if (!titleInput) return;
+        const focused = document.activeElement === titleInput;
+        const start = titleInput.selectionStart;
+        const end = titleInput.selectionEnd;
+        if (titleInput.value !== update.title) {
+            titleInput.value = update.title;
+        }
+        if (titleInput.hasAttribute('data-title-at-focus')) {
+            titleInput.setAttribute('data-title-at-focus', update.title);
+        }
+        if (focused && typeof start === 'number' && typeof end === 'number') {
+            const max = String(update.title).length;
+            titleInput.setSelectionRange(Math.min(start, max), Math.min(end, max));
+        }
+    });
+}
+
+function bindTodoItem(row) {
+    const id = row.dataset.id;
+    const check = row.querySelector('.todo-item-check');
+    const titleInput = row.querySelector('.todo-item-title');
+    const delBtn = row.querySelector('.todo-item-delete');
+
+    check.addEventListener('change', () => {
+        DataStore.updateTodo(id, { done: check.checked });
+    });
+
+    const commitTitle = () => {
+        if (suppressTodoTitleCommit) return;
+        const hasBaseline = titleInput.hasAttribute('data-title-at-focus');
+        const baseline = hasBaseline ? titleInput.getAttribute('data-title-at-focus') : titleInput.value;
+        const next = titleInput.value.trim();
+        const current = DataStore.findTodo(id);
+        if (!next) {
+            titleInput.value = current ? current.title : '';
+            return;
+        }
+        // 同步期间焦点还在、但用户没改字时，不要用旧文字覆盖刚拉下来的标题
+        if (hasBaseline && next === String(baseline).trim()) {
+            if (current && titleInput.value !== current.title) {
+                titleInput.value = current.title;
+            }
+            return;
+        }
+        if (current && next !== current.title) {
+            try {
+                DataStore.updateTodo(id, { title: next });
+            } catch (e) {
+                alert(e.message || '标题无效');
+                titleInput.value = current.title;
+            }
+        }
+    };
+
+    titleInput.addEventListener('focus', () => {
+        if (!titleInput.hasAttribute('data-title-at-focus')) {
+            titleInput.setAttribute('data-title-at-focus', titleInput.value);
+        }
+    });
+    titleInput.addEventListener('blur', () => {
+        if (suppressTodoTitleCommit) return;
+        commitTitle();
+        titleInput.removeAttribute('data-title-at-focus');
+    });
+    titleInput.addEventListener('change', commitTitle);
+    titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            titleInput.blur();
+        }
+    });
+
+    delBtn.addEventListener('click', () => {
+        if (confirm('确定删除这条待办？')) {
+            DataStore.deleteTodo(id);
+        }
+    });
+}
+
+function renderTodoListHtml(items) {
+    if (items.length === 0) {
+        todoList.innerHTML = '<div class="empty-state">暂无待办</div>';
+        return;
+    }
+
+    todoList.innerHTML = items.map((todo) => `
+        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${escapeAttr(todo.id)}">
+            <span class="todo-drag-handle" role="button" aria-label="拖动排序" title="拖动排序">☰</span>
+            <input type="checkbox" class="todo-item-check" ${todo.done ? 'checked' : ''} aria-label="完成">
+            <input type="text" class="todo-item-title" value="${escapeAttr(todo.title)}" maxlength="80" aria-label="待办标题">
+            <button type="button" class="todo-item-delete" title="删除此待办">🗑️</button>
+        </div>
+    `).join('');
+
+    todoList.querySelectorAll('.todo-item').forEach(bindTodoItem);
+}
+
 function renderTodos() {
     if (!todoList) return;
     if (activeTodoDrag) {
@@ -1148,63 +1326,23 @@ function renderTodos() {
         todoPanelTitle.textContent = isTodoViewToday() ? '今日待办' : `${dateStr} 待办`;
     }
     const items = DataStore.getTodosByDate(dateStr);
-    if (items.length === 0) {
-        todoList.innerHTML = '<div class="empty-state">暂无待办</div>';
+    const editing = captureTodoTitleEdit();
+    const plan = TodoModel.planTodoListUpdate(readTodoListRows(), items, focusedTodoDraftId());
+    if (plan.action === 'noop') return;
+    if (plan.action === 'patch') {
+        applyTodoListPatch(plan.updates);
         return;
     }
 
-    todoList.innerHTML = items.map((todo) => `
-        <div class="todo-item${todo.done ? ' is-done' : ''}" data-id="${todo.id}">
-            <span class="todo-drag-handle" role="button" aria-label="拖动排序" title="拖动排序">☰</span>
-            <input type="checkbox" class="todo-item-check" ${todo.done ? 'checked' : ''} aria-label="完成">
-            <input type="text" class="todo-item-title" value="${escapeAttr(todo.title)}" maxlength="80" aria-label="待办标题">
-            <button type="button" class="todo-item-delete" title="删除此待办">🗑️</button>
-        </div>
-    `).join('');
-
-    todoList.querySelectorAll('.todo-item').forEach((row) => {
-        const id = row.dataset.id;
-        const check = row.querySelector('.todo-item-check');
-        const titleInput = row.querySelector('.todo-item-title');
-        const delBtn = row.querySelector('.todo-item-delete');
-
-        check.addEventListener('change', () => {
-            DataStore.updateTodo(id, { done: check.checked });
-        });
-
-        const commitTitle = () => {
-            const next = titleInput.value.trim();
-            const current = DataStore.findTodo(id);
-            if (!next) {
-                titleInput.value = current ? current.title : '';
-                return;
-            }
-            if (current && next !== current.title) {
-                try {
-                    DataStore.updateTodo(id, { title: next });
-                } catch (e) {
-                    alert(e.message || '标题无效');
-                    titleInput.value = current.title;
-                }
-            }
-        };
-
-        titleInput.addEventListener('blur', commitTitle);
-        titleInput.addEventListener('change', commitTitle);
-        titleInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                titleInput.blur();
-            }
-        });
-
-        delBtn.addEventListener('click', () => {
-            if (confirm('确定删除这条待办？')) {
-                DataStore.deleteTodo(id);
-            }
-        });
-    });
-
+    const savedScroll = todoList.scrollTop;
+    suppressTodoTitleCommit = true;
+    try {
+        renderTodoListHtml(items);
+    } finally {
+        suppressTodoTitleCommit = false;
+    }
+    todoList.scrollTop = savedScroll;
+    restoreTodoTitleEdit(editing);
 }
 
 function finishTodoDragSession(session, { saveOrder }) {
