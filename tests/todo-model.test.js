@@ -120,6 +120,55 @@ test('CSV roundtrip preserves date title done order', () => {
     assert.equal(parsed[0].order, 3);
 });
 
+test('planTodoListUpdate leaves an in-progress title edit untouched', () => {
+    const rows = [
+        { id: 'a', done: false, title: '写到一半' },
+        { id: 'b', done: false, title: '另一条' }
+    ];
+    const items = [
+        { id: 'a', done: false, title: '原来的标题' },
+        { id: 'b', done: true, title: '另一条已改' }
+    ];
+    const plan = TodoModel.planTodoListUpdate(rows, items, 'a');
+    assert.equal(plan.action, 'patch');
+    assert.equal(plan.updates.length, 1);
+    assert.equal(plan.updates[0].id, 'b');
+    assert.equal(plan.updates[0].done, true);
+    assert.equal(plan.updates[0].title, '另一条已改');
+    assert.equal(Object.prototype.hasOwnProperty.call(plan.updates[0], 'title'), true);
+});
+
+test('planTodoListUpdate is a no-op when the list already matches', () => {
+    const rows = [{ id: 'a', done: false, title: '同一条' }];
+    const plan = TodoModel.planTodoListUpdate(rows, rows, null);
+    assert.equal(plan.action, 'noop');
+    assert.deepEqual(plan.updates, []);
+});
+
+test('planTodoListUpdate ignores a draft that only exists in the focused row', () => {
+    const rows = [{ id: 'a', done: false, title: '写到一半' }];
+    const items = [{ id: 'a', done: false, title: '原来的标题' }];
+    const plan = TodoModel.planTodoListUpdate(rows, items, 'a');
+    assert.equal(plan.action, 'noop');
+    assert.deepEqual(plan.updates, []);
+});
+
+test('planTodoListUpdate rebuilds when order or membership changes', () => {
+    const rows = [
+        { id: 'a', done: false, title: '甲' },
+        { id: 'b', done: false, title: '乙' }
+    ];
+    const reordered = TodoModel.planTodoListUpdate(rows, [rows[1], rows[0]], null);
+    assert.equal(reordered.action, 'rebuild');
+    const added = TodoModel.planTodoListUpdate(rows, rows.concat([{ id: 'c', done: false, title: '丙' }]), 'a');
+    assert.equal(added.action, 'rebuild');
+});
+
+test('planTodoListUpdate rebuilds when the snapshot is not a list', () => {
+    const plan = TodoModel.planTodoListUpdate(null, [{ id: 'a', done: false, title: '甲' }], null);
+    assert.equal(plan.action, 'rebuild');
+});
+
 test('parseTodoCsv skips invalid rows', () => {
     const csv = [
         '日期,标题,完成,排序',
