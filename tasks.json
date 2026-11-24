@@ -15,11 +15,11 @@
     {
       "id": "fix-02",
       "title": "同步时待办输入不丢焦点",
-      "description": "同步结束会无条件重绘待办列表，innerHTML 拆掉正在编辑的标题框，输入被打断。这是纯 bug 修复：列表没变化时不重建，只改其它行时原地更新，结构变了才重建并恢复光标。",
-      "status": "done",
+      "description": "同步结束会无条件重绘待办列表，innerHTML 拆掉正在编辑的标题框，输入被打断。列表没变化时不重建，只改其它行时原地更新，结构变了才重建并恢复光标。改动超过 3 个文件，需要 Evaluator 评审。",
+      "status": "awaiting_eval",
       "priority": "high",
       "verify": "npm test 退出码为 0。浏览器打开待办页，在已有标题里改到一半时调用 DataStore.notifyDataChanged()，同一个输入框仍保持焦点、草稿和光标；新增一行导致重建后草稿仍在且未写入存储；添加框同样不被抢走焦点；真正 blur 后标题会保存。",
-      "requires_eval": false
+      "requires_eval": true
     },
     {
       "id": "ci-01",

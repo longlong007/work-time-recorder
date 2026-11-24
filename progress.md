@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-11-24 fix-02 改为等待评审
+
+- `fix-02` 改了 6 个文件，按 AGENTS.md 把 `requires_eval` 改为 true，并写了 `sprint_output.md`
+- 状态改为 `awaiting_eval`。Evaluator 通过之前不标 `done`
+- 下次从这里开始：Evaluator 看 `sprint_output.md`；其它待办仍是 `docs-01`
+
 ## 2026-11-24 同步时待办输入不丢焦点
 
 - 完成 fix-02：同步通知不再整表重建待办。未改动的列表直接跳过；只改完成状态或其它行标题时原地更新；增删或排序才重建，并恢复正在编辑的草稿和光标
